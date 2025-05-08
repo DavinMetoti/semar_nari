@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "451770336828",
+    "project_id": "semarnari-b78f2",
+    "storage_bucket": "semarnari-b78f2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:451770336828:android:192781d4ad57d3d8ffe539",
+        "android_client_info": {
+          "package_name": "com.semarnari.semarang"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA7YkiZ3Sj6lJO7BSDyI4FDgNUANQuKXS4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
