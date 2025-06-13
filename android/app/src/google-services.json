@@ -12,7 +12,16 @@
           "package_name": "com.semarnari.semarang"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "451770336828-h1a9iljpkov0lnla4sug904gemsubfj3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.semarnari.semarang",
+            "certificate_hash": "5170999af24ce28b2b51186c34f44e770f577515"
+          }
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyA7YkiZ3Sj6lJO7BSDyI4FDgNUANQuKXS4"
