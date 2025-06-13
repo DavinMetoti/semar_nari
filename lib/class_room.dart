@@ -126,9 +126,6 @@ class ClassRoomService {
         body: json.encode({'id': id}),
       );
 
-      // Log the response status and body for debugging
-      print('Response Status: ${response.statusCode}');
-      print('Response Body: ${response.body}');
 
       if (response.statusCode != 200) {
         Fluttertoast.showToast(
@@ -428,7 +425,20 @@ class _ClassRoomPageState extends State<ClassRoomPage> {
         future: futureClassRooms,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
+            // Skeleton shimmer loading
+            return ListView.builder(
+              itemCount: 5,
+              itemBuilder: (context, index) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Container(
+                  height: 110,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+              ),
+            );
           }
 
           if (snapshot.hasError) {
@@ -438,29 +448,138 @@ class _ClassRoomPageState extends State<ClassRoomPage> {
           final classRooms = snapshot.data ?? [];
 
           return ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             itemCount: classRooms.length,
             itemBuilder: (context, index) {
               final classRoom = classRooms[index];
-              return Card(
-                margin: const EdgeInsets.all(8.0),
-                elevation: 5,
-                child: ListTile(
-                  contentPadding: EdgeInsets.all(12),
-                  title: Text(classRoom.name, style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('Kelas: ${classRoom.grade}\nKapasitas: ${classRoom.capacity}'),
-                  isThreeLine: true,
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.edit),
-                        onPressed: () => _showForm(classRoom: classRoom),
+              final isActive = classRoom.status == 'Actived';
+              return AnimatedContainer(
+                duration: Duration(milliseconds: 350 + index * 40),
+                curve: Curves.easeOutCubic,
+                margin: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () => _showForm(classRoom: classRoom),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        gradient: LinearGradient(
+                          colors: isActive
+                              ? [Color(0xFF43CEA2), Color(0xFF185A9D)]
+                              : [Color(0xFFe0eafc), Color(0xFFcfdef3)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.06),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        icon: Icon(Icons.delete),
-                        onPressed: () => _deleteClassRoom(classRoom.id),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.18),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.class_,
+                                color: isActive ? Colors.white : Color(0xFF31416A),
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: 18),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    classRoom.name,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                      color: isActive ? Colors.white : Color(0xFF31416A),
+                                      letterSpacing: 0.2,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.grade, size: 16, color: isActive ? Colors.white70 : Color(0xFF31416A)),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Tingkat: ${classRoom.grade}',
+                                        style: TextStyle(
+                                          color: isActive ? Colors.white70 : Color(0xFF31416A),
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Icon(Icons.people, size: 16, color: isActive ? Colors.white70 : Color(0xFF31416A)),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Kap: ${classRoom.capacity}',
+                                        style: TextStyle(
+                                          color: isActive ? Colors.white70 : Color(0xFF31416A),
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        classRoom.status == 'Actived' ? Icons.check_circle : Icons.cancel,
+                                        color: classRoom.status == 'Actived' ? Colors.greenAccent : Colors.redAccent,
+                                        size: 16,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        classRoom.status == 'Actived' ? 'Aktif' : 'Tidak Aktif',
+                                        style: TextStyle(
+                                          color: classRoom.status == 'Actived'
+                                              ? Colors.greenAccent
+                                              : Colors.redAccent,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Column(
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.edit, color: isActive ? Colors.white : Color(0xFF31416A)),
+                                  onPressed: () => _showForm(classRoom: classRoom),
+                                  tooltip: 'Edit',
+                                ),
+                                IconButton(
+                                  icon: Icon(Icons.delete, color: Colors.redAccent),
+                                  onPressed: () => _deleteClassRoom(classRoom.id),
+                                  tooltip: 'Hapus',
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
               );
@@ -470,7 +589,8 @@ class _ClassRoomPageState extends State<ClassRoomPage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showForm(),
-        child: Icon(Icons.add),
+        backgroundColor: const Color(0xFF185A9D),
+        child: Icon(Icons.add, color: Colors.white),
       ),
     );
   }

@@ -13,7 +13,6 @@ class FirebaseNotificationService {
     required String token,
   }) async {
     if (token.isEmpty) {
-      print("Token perangkat tidak ditemukan.");
       return;
     }
 
@@ -37,12 +36,9 @@ class FirebaseNotificationService {
       );
 
       if (response.statusCode == 200) {
-        print("Notifikasi berhasil dikirim.");
       } else {
-        print("Gagal mengirim notifikasi: ${response.statusCode} - ${response.body}");
       }
     } catch (e) {
-      print("Error mengirim notifikasi: $e");
     }
   }
 
@@ -51,13 +47,10 @@ class FirebaseNotificationService {
     try {
       String? token = await FirebaseMessaging.instance.getToken();
       if (token == null || token.isEmpty) {
-        print("Token perangkat tidak ditemukan.");
       } else {
-        print("Token perangkat: $token");
       }
       return token;
     } catch (e) {
-      print("Error mendapatkan token perangkat: $e");
       return null;
     }
   }

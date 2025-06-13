@@ -1,8 +1,8 @@
 plugins {
     id "com.android.application"
-    id 'com.google.gms.google-services'
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
 }
 
 def keystoreProperties = new Properties()
@@ -26,9 +26,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.semarnari.semarang"
-        // You can update the following values to match your application needs.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -39,22 +37,24 @@ android {
         release {
             keyAlias keystoreProperties['keyAlias']
             keyPassword keystoreProperties['keyPassword']
-            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storeFile file(keystoreProperties['storeFile']) // tidak perlu ternary, pastikan file-nya ada
             storePassword keystoreProperties['storePassword']
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.release
-            apply plugin: 'com.google.gms.google-services'
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            // Optional: You can customize the debug build type here if needed
+            // Debug config if needed
         }
     }
 }
 
 flutter {
-    source = "../.." // Make sure this points to the correct Flutter source directory
+    source = "../.." // tetap
 }

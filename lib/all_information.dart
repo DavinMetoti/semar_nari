@@ -31,13 +31,11 @@ class _AllNotificationState extends State<AllNotification> {
         throw Exception("Gagal mengambil data");
       }
     } catch (error) {
-      print("Error: $error");
       setState(() {
         isLoading = false;
       });
     }
   }
-
 
   void _showDetailDialog(String title, String description) {
     showDialog(
@@ -67,6 +65,7 @@ class _AllNotificationState extends State<AllNotification> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF152349),
         automaticallyImplyLeading: true,
+        elevation: 0,
         title: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -75,6 +74,7 @@ class _AllNotificationState extends State<AllNotification> {
               height: 30,
               width: 30,
             ),
+            const SizedBox(width: 10),
             const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -111,33 +111,148 @@ class _AllNotificationState extends State<AllNotification> {
           ),
         ],
       ),
-      body: isLoading
-          ? Center(child: CircularProgressIndicator()) // Loading indicator
-          : ListView.builder(
-        padding: EdgeInsets.all(16.0),
-        itemCount: notifications.length,
-        itemBuilder: (context, index) {
-          final item = notifications[index];
-          final String title = item["title"] ?? "Tanpa Judul";
-          final String description = item["description"] ?? "Tanpa Deskripsi";
-          final String shortDescription = description.length > 50
-              ? "${description.substring(0, 50)}..."
-              : description;
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFF6F8FB), Color(0xFFE0EAFC)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: isLoading
+            ? Center(child: CircularProgressIndicator())
+            : notifications.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.notifications_off, size: 60, color: Colors.grey.withOpacity(0.3)),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Belum ada informasi terbaru',
+                          style: TextStyle(
+                            color: Color(0xFF31416A),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(18.0),
+                    itemCount: notifications.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 14),
+                    itemBuilder: (context, index) {
+                      final item = notifications[index];
+                      final String title = item["title"] ?? "Tanpa Judul";
+                      final String description = item["description"] ?? "Tanpa Deskripsi";
+                      final String shortDescription = description.length > 70
+                          ? "${description.substring(0, 70)}..."
+                          : description;
+                      final String createdAt = item["created_at"] ?? "-";
 
-          return Card(
-            elevation: 3.0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12.0),
-            ),
-            child: ListTile(
-              leading: Icon(Icons.notifications, color: Colors.blueAccent),
-              title: Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(shortDescription, style: TextStyle(fontSize: 14.0)),
-              trailing: Icon(Icons.arrow_forward_ios, size: 16.0),
-              onTap: () => _showDetailDialog(title, description),
-            ),
-          );
-        },
+                      return AnimatedContainer(
+                        duration: Duration(milliseconds: 350 + index * 40),
+                        curve: Curves.easeOutCubic,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFe0eafc), Color(0xFFcfdef3)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.06),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: () => _showDetailDialog(title, description),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFF43CEA2), Color(0xFF185A9D)],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                    ),
+                                    padding: const EdgeInsets.all(10),
+                                    child: const Icon(Icons.circle_notifications_outlined, color: Colors.white, size: 28),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                title,
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Color(0xFF152349),
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  createdAt,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    fontStyle: FontStyle.italic,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          shortDescription,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: Color(0xFF31416A),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.arrow_forward_ios, size: 18, color: Color(0xFF31416A)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
       ),
     );
   }

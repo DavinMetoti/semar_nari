@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:semarnari_apk/absen.dart';
 import 'package:semarnari_apk/benner.dart';
+import 'package:semarnari_apk/input_value.dart';
 import 'package:semarnari_apk/login.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'dart:ui';
 import 'package:http/http.dart' as http;
 import 'package:semarnari_apk/services/apiServices.dart';
 import 'package:semarnari_apk/profile.dart';
@@ -23,6 +25,42 @@ import 'make_information.dart';
 import 'all_information.dart';
 import 'spp.dart';
 import 'branch.dart';
+import 'setting.dart';
+
+class BNBCustomPainter extends CustomPainter {
+  final Color backgroundColor;
+
+  BNBCustomPainter({required this.backgroundColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = backgroundColor
+      ..style = PaintingStyle.fill;
+
+    final Path path = Path();
+    path.moveTo(0, 0);
+    path.lineTo(size.width * 0.35, 0);
+    path.quadraticBezierTo(size.width * 0.40, 0, size.width * 0.40, 20);
+    path.arcToPoint(
+      Offset(size.width * 0.60, 20),
+      radius: const Radius.circular(30),
+      clockwise: false,
+    );
+    path.quadraticBezierTo(size.width * 0.60, 0, size.width * 0.65, 0);
+    path.lineTo(size.width, 0);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.close();
+
+    canvas.drawShadow(path, Colors.black.withOpacity(0.2), 5, true);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
+}
+
 
 void main() => runApp(const NavigationBarApp());
 
@@ -38,7 +76,7 @@ class NavigationBarApp extends StatelessWidget {
   }
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   String username = '';
   String studentId = '';
   String? accessRole;
@@ -51,18 +89,33 @@ class _HomePageState extends State<HomePage> {
   bool isAttendanceLoaded = false;
   List<Map<String, dynamic>> _informationList = [];
 
-
   final GlobalKey<RefreshIndicatorState> _refreshIndicatorKey = GlobalKey<RefreshIndicatorState>();
 
-  final List<Widget> _pages = [
+  final List<Widget> _pages = [];
 
-  ];
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 700),
+      vsync: this,
+    );
+    _fadeAnimation = CurvedAnimation(parent: _fadeController, curve: Curves.easeIn);
     _loadUserData();
     fetchInformation();
-    super.initState();
+    // Mulai animasi setelah build
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) _fadeController.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserData() async {
@@ -72,12 +125,8 @@ class _HomePageState extends State<HomePage> {
       accessRole = prefs.getString('access_role');
     });
 
-    print('test Access Role 1: $accessRole');
-
-
 
     if (username == null || username.isEmpty) {
-      print("Username is null or empty!");
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -95,7 +144,6 @@ class _HomePageState extends State<HomePage> {
 
       // API request
       final response = await apiService.post('user/get', {'username': username});
-      print("API Response body: ${response.body}");
 
       final Map<String, dynamic> responseBody = jsonDecode(response.body);
 
@@ -110,7 +158,8 @@ class _HomePageState extends State<HomePage> {
               'username': userData['username'] ?? 'Guest',
               'email': userData['email'] ?? 'No email',
               'fullName': userData['fullname'] ?? 'No name',
-              'branch_name': userData['branch_name'] ?? 'No Branch'
+              'branch_name': userData['branch_name'] ?? 'No Branch',
+              'photo': userData['photo'] ?? '', // <-- pastikan key photo ada
             };
             _isLoading = false;
           });
@@ -118,14 +167,12 @@ class _HomePageState extends State<HomePage> {
         }
       } else {
         final String message = responseBody['message'] ?? 'No data available';
-        print(message);
 
         setState(() {
           _isLoading = false; // Set loading to false if no data available
         });
       }
     } catch (e) {
-      print("Error fetching data: $e");
       setState(() {
         _isLoading = false; // Ensure loading is false if there's an error
       });
@@ -147,20 +194,16 @@ class _HomePageState extends State<HomePage> {
       });
 
       final responseBody = jsonDecode(response.body);
-      print('Response body: ${response.body}');
 
       if (response.statusCode == 200 && responseBody['status'] == true) {
         setState(() {
           attendanceData = List.from(responseBody['data']);
         });
-        print('Attendance Data: $attendanceData');
         isAttendanceLoaded = true; // Tandai sudah dimuat
       } else {
         // Handle error response
-        print('Failed to load attendance data');
       }
     } catch (e) {
-      print(e);
     }
   }
 
@@ -171,12 +214,10 @@ class _HomePageState extends State<HomePage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        print('Response data: ${data}');
         setState(() {
           _informationList = List<Map<String, dynamic>>.from(data['data']);
         });
-      } else {
-      }
+      } else {}
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
@@ -252,7 +293,15 @@ class _HomePageState extends State<HomePage> {
                       onPressed: () async {
                         // Hapus data pengguna dari SharedPreferences
                         final prefs = await SharedPreferences.getInstance();
+                        final fingerprintEnabled = prefs.getBool('fingerprint_enabled') ?? false;
+                        final username = prefs.getString('username') ?? '';
+                        final password = prefs.getString('password') ?? '';
                         await prefs.clear();
+                        if (fingerprintEnabled) {
+                          await prefs.setBool('fingerprint_enabled', true);
+                          if (username.isNotEmpty) await prefs.setString('username', username);
+                          if (password.isNotEmpty) await prefs.setString('password', password);
+                        }
 
                         // Navigasi ke halaman login
                         Navigator.of(context).pop(); // Tutup modal
@@ -284,12 +333,23 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // Dynamically set the HomeScreen with the username and all data
-    _pages.insert(0, HomeScreen(data, _informationList, accessRole! , isLoading: _isLoading));
-    _pages.insert(1, const ProfileScreen());
-    _pages.insert(2, PresenceScreen(attendanceData: attendanceData));
-    print('test Access Role: $accessRole');
+    // Tambahkan pengecekan null pada accessRole
+    if (accessRole == null) {
+      // Tampilkan loading atau widget kosong sampai accessRole terisi
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF152349),
+          automaticallyImplyLeading: false,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
+    // Hindari insert berkali-kali, gunakan clear dan add
+    _pages.clear();
+    _pages.add(HomeScreen(data, _informationList, accessRole!, isLoading: _isLoading));
+    _pages.add(const ProfileScreen());
+    _pages.add(PresenceScreen(attendanceData: attendanceData));
 
     return Scaffold(
       appBar: AppBar(
@@ -337,81 +397,101 @@ class _HomePageState extends State<HomePage> {
       body: RefreshIndicator(
         key: _refreshIndicatorKey,
         onRefresh: _loadUserData,
-        child: ListView(
-          children: [
-            _pages[_currentPageIndex],
-          ],
+        child: AnimatedBuilder(
+          animation: _fadeAnimation,
+          builder: (context, child) {
+            return Opacity(
+              opacity: _fadeAnimation.value,
+              child: child,
+            );
+          },
+          child: ListView(
+            children: [
+              _pages[_currentPageIndex],
+            ],
+          ),
         ),
       ),
-      bottomNavigationBar: Stack(
-        clipBehavior: Clip.none, // Memastikan tombol tidak terpotong
-        alignment: AlignmentDirectional.topCenter,
-        children: [
-          BottomNavigationBar(
-            unselectedLabelStyle: const TextStyle(color: Colors.white, fontSize: 12),
-            selectedLabelStyle: const TextStyle(color: Colors.white, fontSize: 12),
-            backgroundColor: const Color(0xFF152349),
-            selectedItemColor: Colors.white,
-            unselectedItemColor: Colors.white60,
-            currentIndex: _currentPageIndex,
-            onTap: (index) {
-              if (index == 1) return;
-              setState(() {
-                _currentPageIndex = index;
-              });
-            },
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.home_outlined, size: 32),
-                label: 'Home',
-              ),
-              BottomNavigationBarItem(
-                icon: IgnorePointer(
-                  child: SizedBox.shrink(), // Ruang kosong untuk tombol tengah
+      bottomNavigationBar: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: 90,
+          child: Stack(
+            alignment: Alignment.bottomCenter,
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                child: CustomPaint(
+                  size: const Size(double.infinity, 90),
+                  painter: BNBCustomPainter(
+                    backgroundColor: Theme.of(context).colorScheme.background,
+                  ),
                 ),
-                label: '',
               ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.list_alt_outlined, size: 32),
-                label: 'Present',
+              SizedBox(
+                height: 90,
+                child: BottomNavigationBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  currentIndex: _currentPageIndex,
+                  selectedItemColor: Theme.of(context).colorScheme.primary,
+                  unselectedItemColor: Colors.grey,
+                  onTap: (index) {
+                    if (index == 1) return;
+                    setState(() {
+                      _currentPageIndex = index;
+                    });
+                  },
+                  items: const [
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.home_rounded),
+                      label: 'Home',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.circle, color: Colors.transparent),
+                      label: '',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.event_note_rounded),
+                      label: 'Present',
+                    ),
+                  ],
+                ),
+              ),
+              // Tombol Tengah
+              Positioned(
+                bottom: 40, // dinaikkan agar tidak terpotong
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => AbsenPage()));
+                  },
+                  child: Container(
+                    height: 70,
+                    width: 70,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF152349), Color(0xFF253D80)],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt_outlined,
+                      color: Colors.white,
+                      size: 35,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
-          Positioned(
-            bottom: 18, // Jarak tombol tengah dari BottomNavigationBar
-            child: InkWell(
-              onTap: () {
-                print('terklick');
-              },
-              child: Container(
-                height: 80,
-                width: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF152349),
-                  border: Border.all(
-                    color: Colors.white, // Border color
-                    width: 5,            // Border width (adjust as needed)
-                  ),
-                ),
-
-                child: InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const AbsenPage()),
-                    );
-                  },
-                  child: const Icon(
-                    Icons.camera_alt_outlined,
-                    color: Colors.white,
-                    size: 45,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -424,13 +504,193 @@ class HomePage extends StatefulWidget {
   _HomePageState createState() => _HomePageState();
 }
 
+class _ReminderAbsenCard extends StatefulWidget {
+  @override
+  State<_ReminderAbsenCard> createState() => _ReminderAbsenCardState();
+}
+
+class _ReminderAbsenCardState extends State<_ReminderAbsenCard> with TickerProviderStateMixin {
+  bool _visible = true;
+  late AnimationController _slideFadeController;
+  late AnimationController _pulseController;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _slideFadeController = AnimationController(
+      duration: const Duration(milliseconds: 650),
+      vsync: this,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _slideFadeController,
+      curve: Curves.easeOutCubic,
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, -0.18),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideFadeController,
+      curve: Curves.easeOutBack,
+    ));
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 900),
+      vsync: this,
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.22).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+    Future.delayed(const Duration(milliseconds: 180), () {
+      if (mounted) _slideFadeController.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _slideFadeController.dispose();
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  void _closeCard() async {
+    await _slideFadeController.reverse();
+    if (mounted) setState(() => _visible = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_visible) return const SizedBox.shrink();
+
+    return AnimatedBuilder(
+      animation: _slideFadeController,
+      builder: (context, child) {
+        return AnimatedOpacity(
+          opacity: _fadeAnimation.value,
+          duration: const Duration(milliseconds: 250),
+          child: AnimatedSlide(
+            offset: _slideAnimation.value,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOutBack,
+            child: child,
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          elevation: 0,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            splashColor: Colors.blue.shade100.withOpacity(0.18),
+            highlightColor: Colors.blue.shade50.withOpacity(0.12),
+            onTap: () {
+              // Optional: bisa tambahkan aksi jika card ditekan
+            },
+            child: Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50.withOpacity(0.97),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.blue.shade100, width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.shade100.withOpacity(0.18),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Stack(
+                    alignment: Alignment.topRight,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 0),
+                        child: Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            Image.asset(
+                              'assets/images/logo.png',
+                              width: 70,
+                              height: 70,
+                              fit: BoxFit.contain,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Jangan lupa absen hari ini.',
+                              style: const TextStyle(
+                                color: Color(0xFF152349),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Yuk, semangat berlatih dan tetap tersenyum 😊',
+                          style: TextStyle(
+                            color: Color(0xFF31416A),
+                            fontWeight: FontWeight.w500,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: _closeCard,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade100,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blue.shade100.withOpacity(0.18),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(4),
+                      child: const Icon(Icons.close, size: 18, color: Color(0xFF152349)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class HomeScreen extends StatelessWidget {
   final Map<String, dynamic> data;
-  final List<Map<String, dynamic>> info; // Accept data in constructor
-  final bool isLoading; // Accept loading state
-  final String access_role; // Accept access_role
+  final List<Map<String, dynamic>> info;
+  final bool isLoading;
+  final String access_role;
 
-  // Constructor to accept data and loading state
   const HomeScreen(this.data, this.info, this.access_role, {super.key, required this.isLoading});
 
   @override
@@ -440,6 +700,102 @@ class HomeScreen extends StatelessWidget {
     String email = data['email'] ?? 'No email';
     String branch = data['branch_name'] ?? 'No branch';
     String accessRole = access_role;
+
+    final List<_MenuItem> userMenus = [
+      _MenuItem(
+        icon: 'assets/images/checklist.png',
+        label: 'Kehadiran',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AttendanceScreen())),
+        color: Colors.indigo,
+      ),
+      _MenuItem(
+        icon: 'assets/images/schedule.png',
+        label: 'Jadwal',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SchedulePage())),
+        color: Colors.deepPurple,
+      ),
+      _MenuItem(
+        icon: 'assets/images/report.png',
+        label: 'Raport',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => RaportPage())),
+        color: Colors.pinkAccent,
+      ),
+      _MenuItem(
+        icon: 'assets/images/book.png',
+        label: 'Edit Profil',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfilePage())),
+        color: Colors.teal,
+      ),
+      _MenuItem(
+        icon: 'assets/images/invoice.png',
+        label: 'SPP',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SppPage())),
+        color: Colors.green,
+      ),
+      _MenuItem(
+        icon: 'assets/images/gear.png',
+        label: 'Setting',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SettingPage())),
+        color: Colors.orangeAccent,
+      ),
+    ];
+
+    final List<_MenuItem> adminMenus = [
+      _MenuItem(
+        icon: 'assets/images/students.png',
+        label: 'Daftar Siswa',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => StudentListPage())),
+        color: Colors.blue,
+      ),
+      _MenuItem(
+        icon: 'assets/images/task-planning.png',
+        label: 'Buat Jadwal',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MakeSchedulePage())),
+        color: Colors.deepOrange,
+      ),
+      _MenuItem(
+        icon: 'assets/images/branch.png',
+        label: 'Sanggar',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => BranchPage())),
+        color: Colors.cyan,
+      ),
+      _MenuItem(
+        icon: 'assets/images/wayang.png',
+        label: 'Kelas',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ClassRoomPage())),
+        color: Colors.purple,
+      ),
+      _MenuItem(
+        icon: 'assets/images/working.png',
+        label: 'Buat Admin',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => CreateAdminPage())),
+        color: Colors.redAccent,
+      ),
+      _MenuItem(
+        icon: 'assets/images/invoice.png',
+        label: 'Catat SPP',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SPPPaymentsPage())),
+        color: Colors.green,
+      ),
+      _MenuItem(
+        icon: 'assets/images/score.png',
+        label: 'Input Nilai',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => InputValuePage())),
+        color: Colors.deepPurpleAccent,
+      ),
+      _MenuItem(
+        icon: 'assets/images/messages.png',
+        label: 'Tambah Info',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MakeInformationPage())),
+        color: Colors.blueGrey,
+      ),
+      _MenuItem(
+        icon: 'assets/images/advertising.png',
+        label: 'Banner',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => BannerPage())),
+        color: Colors.orange,
+      ),
+    ];
 
     void _showDetailDialog(String title, String description) {
       showDialog(
@@ -465,973 +821,643 @@ class HomeScreen extends StatelessWidget {
       );
     }
 
-    return Column(
+    return Stack(
       children: [
-        // Profile container with background
-        Container(
-          height: 120,
-          width: double.infinity,
-          decoration: const BoxDecoration(
-            color: Color(0xFF152349),
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(20),
-              bottomRight: Radius.circular(20),
+        // Curved blue background
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            height: 180,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF152349), Color(0xFF3b5998)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(48),
+                bottomRight: Radius.circular(48),
+              ),
             ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Flexible(
-                  child: Card(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+        ),
+        // Main content
+        ListView(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            const SizedBox(height: 15),
+            // --- MODERN WELCOME CARD START ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.white.withOpacity(0.18),
+                          Colors.blue.shade50.withOpacity(0.18),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(color: Colors.white.withOpacity(0.25), width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blueGrey.withOpacity(0.10),
+                          blurRadius: 18,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 22),
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 25,
+                        runSpacing: 12,
                         children: [
-                          Flexible(
+                          SizedBox(
+                            width: MediaQuery.of(context).size.width - 68 - 0 - 18 - 60, // avatar + padding + spacing + approx. profile btn
                             child: Skeletonizer(
                               enabled: isLoading,
-                              child: ListView.builder(
-                                itemCount: 1,
-                                itemBuilder: (context, index) {
-                                  return Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'Welcome, $fullName!',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      Text(
-                                        'Email: $email',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      Text(
-                                        'Cabang: $branch',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          InkWell(
-                            onTap: () {
-                              // Navigate to ProfilePage when the icon is tapped
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => const ProfilePage()), // Navigate correctly to ProfilePage
-                              );
-                            },
-                            child: const Column(
-                              children: [
-                                Icon(
-                                  Icons.account_circle_outlined,
-                                  color: Colors.white,
-                                  size: 45,
-                                ),
-                                Text(
-                                  'Profile',
-                                  style: TextStyle(
-                                    color: Colors.white, // Choose a text color that contrasts with the background
-                                    fontSize: 12,         // Adjust the font size as needed
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 10,),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                                MaterialPageRoute(builder: (context) => AttendanceScreen())
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                          child: Card(
-                            color: const Color(0xFF152349),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  Image.asset(
-                                    'assets/images/checklist.png',
-                                    width: 40,
-                                    height: 40,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2.0), // Space between card and text
-                    const Text(
-                      'Kehadiran',
-                      style: TextStyle(fontSize: 12.0),
-                    ),
-                  ],
-                ),
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => SchedulePage())
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                          child: Card(
-                            color: const Color(0xFF152349),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    'assets/images/schedule.png',
-                                    width: 40,
-                                    height: 40,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2.0), // Space between card and text
-                    const Text(
-                      'Jadwal',
-                      style: TextStyle(fontSize: 12.0),
-                    ),
-                  ],
-                ),
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => RaportPage()),
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                          child: Card(
-                            color: const Color(0xFF152349),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    'assets/images/report.png',
-                                    width: 40,
-                                    height: 40,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2.0), // Space between card and text
-                    const Text(
-                      'Raport',
-                      style: TextStyle(fontSize: 12.0),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                children: [
-                  Row(
-                    children: [
-                      InkWell(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const EditProfilePage()),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                        child: Card(
-                          color: const Color(0xFF152349),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Image.asset(
-                                  'assets/images/book.png',
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.contain,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2.0), // Space between card and text
-                  const Text(
-                    'Edit Profil',
-                    style: TextStyle(fontSize: 12.0),
-                  ),
-                ],
-              ),
-              Column(
-                children: [
-                  Row(
-                    children: [
-                      InkWell(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const RankingPage()),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                        child: Card(
-                          color: const Color(0xFF152349),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Image.asset(
-                                  'assets/images/trophy.png',
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.contain,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2.0), // Space between card and text
-                  const Text(
-                    'Peringkat',
-                    style: TextStyle(fontSize: 12.0),
-                  ),
-                ],
-              ),
-              Column(
-                children: [
-                  Row(
-                    children: [
-                      InkWell(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => SppPage()),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                        child: Card(
-                          color: const Color(0xFF152349),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Image.asset(
-                                  'assets/images/invoice.png',
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.contain,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2.0), // Space between card and text
-                  const Text(
-                    'SPP',
-                    style: TextStyle(fontSize: 12.0),
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-        ),
-        if (accessRole == "2")
-          Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Row(
-            children: [
-              Icon(
-                Icons.warning, // Warning triangle icon
-                color: Colors.orange, // Set the icon color to orange (typically used for warnings)
-                size: 18.0, // Adjust the size if necessary
-              ),
-              SizedBox(width: 8.0), // Add space between icon and text
-              Text(
-                'Menu Admin & Guru',
-                textAlign: TextAlign.left, // Align text to the left
-                style: TextStyle(
-                  fontWeight: FontWeight.bold, // Make the text bold
-                  fontSize: 14.0, // Optional: Adjust the font size if needed
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              if (accessRole == "2")
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => StudentListPage())
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                          child: Card(
-                            color: const Color(0xFF152349),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    'assets/images/students.png',
-                                    width: 30,
-                                    height: 30,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2.0), // Space between card and text
-                    const Text(
-                      'Daftar Siswa',
-                      style: TextStyle(fontSize: 10.0),
-                    ),
-                  ],
-                ),
-              if (accessRole == "2") // Only show if accessRole == 2
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => MakeSchedulePage())
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                          child: Card(
-                            color: const Color(0xFF152349),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    'assets/images/task-planning.png',
-                                    width: 30,
-                                    height: 30,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2.0), // Space between card and text
-                    const Text(
-                      'Buat Jadwal',
-                      style: TextStyle(fontSize: 10.0),
-                    ),
-                  ],
-                ),
-              if (accessRole == "2") // Only show if accessRole == 2
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => BranchPage())
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                          child: Card(
-                            color: const Color(0xFF152349),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    'assets/images/branch.png',
-                                    width: 30,
-                                    height: 30,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2.0), // Space between card and text
-                    const Text(
-                      'Sanggar',
-                      style: TextStyle(fontSize: 10.0),
-                    ),
-                  ],
-                ),
-              if (accessRole == "2") // Only show if accessRole == 2
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => ClassRoomPage())
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                          child: Card(
-                            color: const Color(0xFF152349),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    'assets/images/wayang.png',
-                                    width: 30,
-                                    height: 30,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2.0), // Space between card and text
-                    const Text(
-                      'Kelas',
-                      style: TextStyle(fontSize: 10.0),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              if (accessRole == "2")
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => CreateAdminPage())
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                          child: Card(
-                            color: const Color(0xFF152349),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    'assets/images/working.png',
-                                    width: 30,
-                                    height: 30,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2.0), // Space between card and text
-                    const Text(
-                      'Buat Admin',
-                      style: TextStyle(fontSize: 10.0),
-                    ),
-                  ],
-                ),
-              if (accessRole == "2")
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => SPPPaymentsPage())
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                          child: Card(
-                            color: const Color(0xFF152349),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    'assets/images/invoice.png',
-                                    width: 30,
-                                    height: 30,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2.0), // Space between card and text
-                    const Text(
-                      'Catat SPP',
-                      style: TextStyle(fontSize: 10.0),
-                    ),
-                  ],
-                ),
-              if (accessRole == "2")
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            // Navigator.push(
-                            //     context,
-                            //     MaterialPageRoute(builder: (context) => SPPPaymentsPage())
-                            // );
-                          },
-                          borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                          child: Card(
-                            color: const Color(0xFF152349),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    'assets/images/score.png',
-                                    width: 30,
-                                    height: 30,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2.0), // Space between card and text
-                    const Text(
-                      'Input Nilai',
-                      style: TextStyle(fontSize: 10.0),
-                    ),
-                  ],
-                ),
-              if (accessRole == "2")
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => MakeInformationPage())
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                          child: Card(
-                            color: const Color(0xFF152349),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    'assets/images/messages.png',
-                                    width: 30,
-                                    height: 30,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2.0), // Space between card and text
-                    const Text(
-                      'Tambah Info',
-                      style: TextStyle(fontSize: 10.0),
-                    ),
-                  ],
-                ),
-              if (accessRole == "2")
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => BannerPage())
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(16.0), // Matches Card's border radius
-                          child: Card(
-                            color: const Color(0xFF152349),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16.0), // Optional rounded corners
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    'assets/images/advertising.png',
-                                    width: 30,
-                                    height: 30,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2.0), // Space between card and text
-                    const Text(
-                      'Banner',
-                      style: TextStyle(fontSize: 10.0),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.info, // Info circle icon
-                        color: Colors.green, // Set the icon color to green (hijab color)
-                        size: 18.0, // Adjust the size if necessary
-                      ),
-                      SizedBox(width: 8.0), // Add space between icon and text
-                      Text(
-                        'Informasi Terbaru',
-                        textAlign: TextAlign.left, // Align text to the left
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold, // Make the text bold
-                          fontSize: 14.0, // Optional: Adjust the font size if needed
-                        ),
-                      ),
-                    ],
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => AllNotification()),
-                      );
-                    },
-                    child: Text(
-                      'Semua informasi',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14.0,
-                        color: Colors.blue, // Tambahkan warna agar terlihat sebagai link
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 8.0),
-              Column(
-                children: info.isNotEmpty
-                    ? info.map((item) {
-                  return GestureDetector(
-                    onTap: () => _showDetailDialog(
-                      item["title"] ?? "Tanpa Judul",
-                      item["description"] ?? "Tanpa Deskripsi",
-                    ),
-                    child: Container(
-                      width: double.infinity,
-                      child: Card(
-                        elevation: 4.0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12.0),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Icon(Icons.circle_notifications_outlined, color: Colors.blueAccent),
-
-                              SizedBox(width: 10.0), // Beri jarak antara ikon dan teks
-
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        // Judul informasi (dibatasi agar tidak terlalu panjang)
-                                        Expanded(
-                                          child: Text(
-                                            item["title"] ?? "Tanpa Judul",
-                                            style: TextStyle(
-                                              fontSize: 16.0,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.blueAccent,
+                                  // FOTO PROFIL
+                                  Builder(
+                                    builder: (context) {
+                                      final photo = data['photo']?.toString() ?? '';
+                                      if (photo.isNotEmpty && photo != 'null') {
+                                        if (photo.startsWith('data:image/')) {
+                                          try {
+                                            final base64Str = photo.split(',').last;
+                                            return Container(
+                                              width: 48,
+                                              height: 48,
+                                              margin: const EdgeInsets.only(right: 16),
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(color: Colors.white, width: 2),
+                                              ),
+                                              child: ClipOval(
+                                                child: Image.memory(
+                                                  base64Decode(base64Str),
+                                                  width: 48,
+                                                  height: 48,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              ),
+                                            );
+                                          } catch (_) {
+                                            return Container(
+                                              width: 48,
+                                              height: 48,
+                                              margin: const EdgeInsets.only(right: 16),
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                color: Colors.grey.shade300,
+                                              ),
+                                              child: const Icon(Icons.account_circle, size: 44, color: Colors.white),
+                                            );
+                                          }
+                                        } else {
+                                          return Container(
+                                            width: 48,
+                                            height: 48,
+                                            margin: const EdgeInsets.only(right: 16),
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              border: Border.all(color: Colors.white, width: 2),
                                             ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis, // Tambahkan ellipsis jika teks terlalu panjang
+                                            child: ClipOval(
+                                              child: Image.network(
+                                                photo,
+                                                width: 48,
+                                                height: 48,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error, stackTrace) => Icon(
+                                                  Icons.account_circle,
+                                                  size: 44,
+                                                  color: Colors.grey.shade300,
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      } else {
+                                        return Container(
+                                          width: 48,
+                                          height: 48,
+                                          margin: const EdgeInsets.only(right: 16),
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: Colors.grey.shade300,
                                           ),
-                                        ),
-
-                                        SizedBox(width: 8.0), // Beri jarak sebelum waktu
-
-                                        // Waktu (diletakkan di pojok kanan)
+                                          child: const Icon(Icons.account_circle, size: 44, color: Colors.white),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                  // TEKS: Hi, Nama, Email, Branch
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
                                         Row(
+                                          mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Icon(Icons.access_time, size: 14.0, color: Colors.grey),
-                                            SizedBox(width: 4.0),
                                             Text(
-                                              item["created_at"] ?? "-",
+                                              'Hi, ',
                                               style: TextStyle(
-                                                fontSize: 12.0,
-                                                fontStyle: FontStyle.italic,
-                                                color: Colors.grey,
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 16,
+                                                letterSpacing: 0.2,
+                                              ),
+                                            ),
+                                            Flexible(
+                                              child: Text(
+                                                fullName,
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                  letterSpacing: 0.2,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            const Text(
+                                              '👋',
+                                              style: TextStyle(fontSize: 16),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.email_outlined, color: Colors.blue.shade300, size: 16),
+                                            const SizedBox(width: 6),
+                                            Flexible(
+                                              child: Text(
+                                                email,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.location_on_outlined, color: Colors.pink.shade200, size: 16),
+                                            const SizedBox(width: 6),
+                                            Flexible(
+                                              child: Text(
+                                                branch,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
                                           ],
                                         ),
                                       ],
                                     ),
-
-                                    SizedBox(height: 6.0),
-
-                                    // Deskripsi singkat (dibatasi maksimal 50 karakter)
-                                    Text(
-                                      item["thumbnail"] != null && item["thumbnail"].length > 50
-                                          ? "${item["thumbnail"].substring(0, 50)}..."
-                                          : item["thumbnail"] ?? "Tanpa Deskripsi",
-                                      style: TextStyle(fontSize: 14.0, color: Colors.black87),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis, // Tambahkan ellipsis jika teks terlalu panjang
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList()
-                    : [
-                  // Jika Tidak Ada Informasi
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                    child: Card(
-                      elevation: 3.0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Row(
-                          children: [
-                            Icon(Icons.info_outline, color: Colors.orange, size: 24.0),
-                            SizedBox(width: 8.0),
-                            Expanded(
-                              child: Text(
-                                'Tidak ada informasi terbaru',
-                                style: TextStyle(fontSize: 14.0, fontStyle: FontStyle.italic, color: Colors.black54),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                          // Profile button
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () {
+                                Navigator.push(context, MaterialPageRoute(builder: (context) => ProfilePage()));
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade100.withOpacity(0.25),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  color: Color(0xFF152349),
+                                  size: 22,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
+                ),
+              ),
+            ),
+            // --- MODERN WELCOME CARD END ---
+            const SizedBox(height: 30),
+            if (access_role != "2") _ReminderAbsenCard(),
+            const SizedBox(height: 2),
+            // Menu utama
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Menu Utama",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // User menu: horizontal scroll, square, shadow
+                  SizedBox(
+                    height: 80,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: userMenus.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (context, idx) {
+                        final menu = userMenus[idx];
+                        return _SquareMenuCard(
+                          icon: menu.icon,
+                          label: menu.label,
+                          onTap: menu.onTap,
+                          color: menu.color,
+                        );
+                      },
+                    ),
+                  ),
+                  if (accessRole == "2") ...[
+                    const SizedBox(height: 22),
+                    Text(
+                      "Menu Admin",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // Admin menu: grid, 3 columns, square, shadow
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: NeverScrollableScrollPhysics(),
+                      itemCount: adminMenus.length,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: 14,
+                        crossAxisSpacing: 14,
+                        childAspectRatio: 1,
+                      ),
+                      itemBuilder: (context, idx) {
+                        final menu = adminMenus[idx];
+                        return _SquareMenuCard(
+                          icon: menu.icon,
+                          label: menu.label,
+                          onTap: menu.onTap,
+                          color: menu.color,
+                        );
+                      },
+                    ),
+                  ],
                 ],
               ),
-              SizedBox(height: 8,),
-            ],
-          ),
+            ),
+            const SizedBox(height: 24),
+            // Info section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Modern info header
+                  Row(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Color(0xFF3b5998), Color(0xFF5dade2)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        padding: const EdgeInsets.all(7),
+                        child: Icon(Icons.info_outline, color: Colors.white, size: 18),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Informasi Terbaru',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 17,
+                          color: Theme.of(context).colorScheme.primary,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => AllNotification()),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.blueGrey.shade700 // dark mode
+                                : Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Semua informasi',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white70 // dark mode
+                                  : Colors.blue.shade700, // light mode
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  // Redesigned vertical info cards (like all_information.dart)
+                  info.isNotEmpty
+                      ? ListView.separated(
+                          shrinkWrap: true,
+                          physics: NeverScrollableScrollPhysics(),
+                          itemCount: info.length > 3 ? 3 : info.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 14),
+                          itemBuilder: (context, index) {
+                            final item = info[index];
+                            final String title = item["title"] ?? "Tanpa Judul";
+                            final String description = item["description"] ?? "Tanpa Deskripsi";
+                            final String shortDescription = description.length > 70
+                                ? "${description.substring(0, 70)}..."
+                                : description;
+                            final String createdAt = item["created_at"] ?? "-";
+                            return AnimatedContainer(
+                              duration: Duration(milliseconds: 350 + index * 40),
+                              curve: Curves.easeOutCubic,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFe0eafc), Color(0xFFcfdef3)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.06),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(18),
+                                  onTap: () => _showDetailDialog(title, description),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            gradient: const LinearGradient(
+                                              colors: [Color(0xFF3b5998), Color(0xFF5dade2)],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            ),
+                                          ),
+                                          padding: const EdgeInsets.all(10),
+                                          child: const Icon(Icons.circle_notifications_outlined, color: Colors.white, size: 28),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      title,
+                                                      style: const TextStyle(
+                                                        fontSize: 16,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Color(0xFF152349),
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Row(
+                                                    children: [
+                                                      const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                                                      const SizedBox(width: 4),
+                                                      Text(
+                                                        createdAt,
+                                                        style: const TextStyle(
+                                                          fontSize: 12,
+                                                          fontStyle: FontStyle.italic,
+                                                          color: Colors.grey,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                shortDescription,
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  color: Color(0xFF31416A),
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Icon(Icons.arrow_forward_ios, size: 18, color: Color(0xFF31416A)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : Center(
+                          child: Container(
+                            width: double.infinity,
+                            height: 90,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.blueGrey.shade700 // dark mode
+                                  : Colors.blue.shade50,      // light mode
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const SizedBox(width: 10),
+                                Icon(Icons.info_outline, color: Colors.blue, size: 28),
+                                const SizedBox(width: 10),
+                                const Expanded(
+                                  child: Text(
+                                    'Tidak ada informasi terbaru',
+                                    style: TextStyle(
+                                      fontSize: 14.5,
+                                      fontStyle: FontStyle.italic,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
+}
+
+// Model menu item
+class _MenuItem {
+  final String icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color color;
+  _MenuItem({required this.icon, required this.label, required this.onTap, required this.color});
+}
+
+// Persegi menu card untuk user & admin
+class _SquareMenuCard extends StatelessWidget {
+  final String icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color color;
+
+  const _SquareMenuCard({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              colors: [color.withOpacity(0.85), color.withOpacity(0.65)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.18),
+                blurRadius: 8,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                padding: const EdgeInsets.all(8),
+                child: Image.asset(
+                  icon,
+                  width: 26,
+                  height: 26,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12.5,
+                  letterSpacing: 0.2,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black38,
+                      blurRadius: 2,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
 }
 
 class PresenceScreen extends StatelessWidget {
@@ -1449,32 +1475,40 @@ class PresenceScreen extends StatelessWidget {
       ),
     )
         : SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
         children: List.generate(attendanceData.length, (index) {
           var attendance = attendanceData[index];
-          return Card(
+
+          return Container(
             margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: const LinearGradient(
+                colors: [Color(0xFFDEE2FF), Color(0xFFEFF0F5)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
             ),
-            elevation: 4,
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   attendance['photo'] != null && attendance['photo'].isNotEmpty
-                      ? Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(30),
-                      image: DecorationImage(
-                        image: MemoryImage(
-                          const Base64Decoder().convert(attendance['photo']),
-                        ),
-                        fit: BoxFit.cover,
-                      ),
+                      ? ClipRRect(
+                    borderRadius: BorderRadius.circular(40),
+                    child: Image.memory(
+                      const Base64Decoder().convert(attendance['photo']),
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.cover,
                     ),
                   )
                       : CircleAvatar(
@@ -1482,37 +1516,18 @@ class PresenceScreen extends StatelessWidget {
                     backgroundColor: Colors.grey.shade300,
                     child: Icon(Icons.person, size: 30, color: Colors.grey.shade700),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
-                              decoration: BoxDecoration(
-                                color: attendance['status'] == 'Absen'
-                                    ? Colors.green
-                                    : attendance['status'] == 'Ijin'
-                                    ? Colors.orange
-                                    : Colors.red, // Warna berdasarkan tipe
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                "${attendance['status']}", // Tampilkan tipe kehadiran
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
+                            _buildStatusBadge(attendance['status']),
                             const Spacer(),
                             Row(
                               children: [
-                                const Icon(Icons.location_on, size: 16, color: Colors.red),
+                                const Icon(Icons.location_on, size: 16, color: Colors.redAccent),
                                 const SizedBox(width: 4),
                                 Text(
                                   attendance['location'] ?? '',
@@ -1530,8 +1545,8 @@ class PresenceScreen extends StatelessWidget {
                           '${attendance['attendance_date'] ?? ''} | ${attendance['check_in_time'] ?? '-'}',
                           style: const TextStyle(
                             fontSize: 14,
+                            fontWeight: FontWeight.w600,
                             color: Colors.black87,
-                            fontWeight: FontWeight.bold
                           ),
                         ),
                       ],
@@ -1545,19 +1560,43 @@ class PresenceScreen extends StatelessWidget {
       ),
     );
   }
-  Color _getStatusColor(String? status) {
-    switch (status?.toLowerCase()) {
-      case 'absen':
-        return Colors.green;
-      case 'sakit':
-        return Colors.yellow;
-      case 'ijin':
-        return Colors.red;
+
+  Widget _buildStatusBadge(String? status) {
+    Color bgColor;
+    String label = status ?? 'Unknown';
+
+    switch (status) {
+      case 'Absen':
+        bgColor = Colors.green;
+        break;
+      case 'Ijin':
+        bgColor = Colors.orange;
+        break;
+      case 'Alpha':
+        bgColor = Colors.redAccent;
+        break;
       default:
-        return Colors.black54;
+        bgColor = Colors.grey;
     }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 10),
+      decoration: BoxDecoration(
+        color: bgColor.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+    );
   }
 }
+
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});

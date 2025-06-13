@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
+
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
 /// Example:
@@ -17,29 +18,17 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -53,11 +42,49 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyA7YkiZ3Sj6lJO7BSDyI4FDgNUANQuKXS4',
-    appId: '1:451770336828:android:192781d4ad57d3d8ffe539',
-    messagingSenderId: '451770336828',
-    projectId: 'semarnari-b78f2',
-    storageBucket: 'semarnari-b78f2.firebasestorage.app',
+    apiKey: 'AIzaSyCuN3ed-Yso7_Rn1Ef6gSNrwhn_8PU0JMQ',
+    appId: '1:1035856006398:android:8dbfb2614c407df70929af',
+    messagingSenderId: '1035856006398',
+    projectId: 'semarnarisemarang',
+    storageBucket: 'semarnarisemarang.firebasestorage.app',
+  );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyDPCx_7tfUdQBrCvRxYCBDiZd-F34P5t54',
+    appId: '1:1035856006398:web:e45fd98b7ec3ef770929af',
+    messagingSenderId: '1035856006398',
+    projectId: 'semarnarisemarang',
+    authDomain: 'semarnarisemarang.firebaseapp.com',
+    storageBucket: 'semarnarisemarang.firebasestorage.app',
+    measurementId: 'G-08P57LLTBB',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyBm36D-zLYKZPhEkzZa6ogyq2umD0SXtes',
+    appId: '1:1035856006398:ios:be1d25702c76ae390929af',
+    messagingSenderId: '1035856006398',
+    projectId: 'semarnarisemarang',
+    storageBucket: 'semarnarisemarang.firebasestorage.app',
+    iosBundleId: 'com.example.semarnariApk',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyBm36D-zLYKZPhEkzZa6ogyq2umD0SXtes',
+    appId: '1:1035856006398:ios:be1d25702c76ae390929af',
+    messagingSenderId: '1035856006398',
+    projectId: 'semarnarisemarang',
+    storageBucket: 'semarnarisemarang.firebasestorage.app',
+    iosBundleId: 'com.example.semarnariApk',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyDPCx_7tfUdQBrCvRxYCBDiZd-F34P5t54',
+    appId: '1:1035856006398:web:f19b1d3c19b470cf0929af',
+    messagingSenderId: '1035856006398',
+    projectId: 'semarnarisemarang',
+    authDomain: 'semarnarisemarang.firebaseapp.com',
+    storageBucket: 'semarnarisemarang.firebasestorage.app',
+    measurementId: 'G-1GK7FZXYEP',
   );
 
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:semarnari_apk/services/apiServices.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:ui';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -10,7 +11,7 @@ class RegisterPage extends StatefulWidget {
   State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _RegisterPageState extends State<RegisterPage> {
+class _RegisterPageState extends State<RegisterPage> with TickerProviderStateMixin {
   final ApiService apiService = ApiService();
   bool isChecked = false;
   String? selectedBranch;
@@ -28,10 +29,25 @@ class _RegisterPageState extends State<RegisterPage> {
   final _phoneController = TextEditingController();
   List<dynamic> branches = [];
 
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
+
   @override
   void initState() {
     super.initState();
     fetchBranches();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 700),
+      vsync: this,
+    );
+    _fadeAnimation = CurvedAnimation(parent: _fadeController, curve: Curves.easeIn);
+    _fadeController.forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
   }
 
   Future<void> fetchBranches() async {
@@ -94,8 +110,6 @@ class _RegisterPageState extends State<RegisterPage> {
         phone,
       );
 
-      print('Response: $response');
-
       if (response['status'] == 'success') {
         showSuccessBottomSheet(
           context,
@@ -123,11 +137,8 @@ class _RegisterPageState extends State<RegisterPage> {
         context,
         'Error: $e',
       );
-      print('Error: $e');
-      print('Stack Trace: $stackTrace');
     }
   }
-
 
   void showSuccessBottomSheet(BuildContext context, String message) {
     showModalBottomSheet(
@@ -272,104 +283,225 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        color: const Color(0xFFFDFFF8),
-        height: MediaQuery.of(context).size.height,
+      backgroundColor: Colors.white,
+      body: AnimatedBuilder(
+        animation: _fadeAnimation,
+        builder: (context, child) {
+          return Opacity(
+            opacity: _fadeAnimation.value,
+            child: child,
+          );
+        },
         child: Stack(
           children: [
-            Container(
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage("assets/images/bg-apk2.jpeg"), // Path gambar
-                  fit: BoxFit.cover, // Menutupi seluruh layar
+            // Atas melengkung biru dengan efek gradient dan shadow (sama seperti login)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ClipPath(
+                clipper: TopCurveClipper(),
+                child: Container(
+                  height: 260,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF152349), Color(0xFF3a497b)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 24,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(top: 250),
-              child: Card(
-                color: Colors.white.withOpacity(0.7), // Transparansi 20%
-                elevation: 5, // Menambahkan efek bayangan
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
+                    const SizedBox(height: 70),
+                    Center(
+                      child: Container(
+                        width: 110,
+                        height: 110,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.18),
+                              blurRadius: 24,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 4,
+                          ),
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            "assets/images/logo.png",
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 70),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(22),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.85),
+                            borderRadius: BorderRadius.circular(22),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 18,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 18),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               const Text(
-                                "Registrasi",
+                                "Registrasi Akun",
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontSize: 20,
+                                  fontSize: 22,
                                   color: Color(0xFF152349),
                                   fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.1,
                                 ),
                               ),
-                              const SizedBox(height: 40),
-                              // Name Input Field
+                              const SizedBox(height: 6),
+                              const Text(
+                                "Bergabunglah bersama SEMARNARI",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.black54,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
                               TextFormField(
                                 controller: _nameController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Name',
-                                  border: OutlineInputBorder(),
+                                decoration: InputDecoration(
+                                  labelText: 'Nama Lengkap',
+                                  prefixIcon: Icon(Icons.person, color: Color(0xFF152349)),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: Color(0xFF152349), width: 2),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 20),
-                              // Email Input Field
+                              const SizedBox(height: 16),
                               TextFormField(
                                 controller: _emailController,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Email',
-                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.email, color: Color(0xFF152349)),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: Color(0xFF152349), width: 2),
+                                  ),
                                 ),
                                 keyboardType: TextInputType.emailAddress,
                               ),
-                              const SizedBox(height: 20),
-                              // Username Input Field
+                              const SizedBox(height: 16),
                               TextFormField(
                                 controller: _usernameController,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Username',
-                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.account_circle, color: Color(0xFF152349)),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: Color(0xFF152349), width: 2),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 20),
-                              // Password Input Field
+                              const SizedBox(height: 16),
                               TextFormField(
                                 controller: _passwordController,
                                 obscureText: true,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Password',
-                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.lock, color: Color(0xFF152349)),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: Color(0xFF152349), width: 2),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 20),
-                              // Confirm Password Input Field
+                              const SizedBox(height: 16),
                               TextFormField(
                                 controller: _confirmPasswordController,
                                 obscureText: true,
-                                decoration: const InputDecoration(
-                                  labelText: 'Confirm Password',
-                                  border: OutlineInputBorder(),
+                                decoration: InputDecoration(
+                                  labelText: 'Konfirmasi Password',
+                                  prefixIcon: Icon(Icons.lock_outline, color: Color(0xFF152349)),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: Color(0xFF152349), width: 2),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 20),
-                              // Branch Selection Dropdown
+                              const SizedBox(height: 16),
                               DropdownButtonFormField<String>(
                                 value: selectedBranch,
-                                hint: const Text('Select Branch'),
-                                decoration: const InputDecoration(
-                                  border: OutlineInputBorder(),
+                                hint: const Text('Pilih Cabang'),
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  prefixIcon: Icon(Icons.location_on, color: Color(0xFF152349)),
+                                  filled: true,
+                                  fillColor: Colors.white,
                                 ),
                                 items: branches.map<DropdownMenuItem<String>>((branch) {
                                   return DropdownMenuItem<String>(
@@ -383,11 +515,10 @@ class _RegisterPageState extends State<RegisterPage> {
                                   });
                                 },
                               ),
-                              const SizedBox(height: 20),
-                              // Grade Input Field
+                              const SizedBox(height: 16),
                               DropdownButtonFormField<int>(
                                 value: selectedGrade,
-                                hint: const Text('Select Grade'),
+                                hint: const Text('Pilih Kelas'),
                                 items: [
                                   DropdownMenuItem<int>(
                                     value: 0,
@@ -423,15 +554,20 @@ class _RegisterPageState extends State<RegisterPage> {
                                     selectedGrade = value;
                                   });
                                 },
-                                decoration: const InputDecoration(
-                                  labelText: 'Gender',
-                                  border: OutlineInputBorder(),
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  prefixIcon: Icon(Icons.grade, color: Color(0xFF152349)),
+                                  filled: true,
+                                  fillColor: Colors.white,
                                 ),
                               ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 16),
                               DropdownButtonFormField<String>(
                                 value: selectedGender,
-                                hint: const Text('Select Gender'),
+                                hint: const Text('Pilih Jenis Kelamin'),
                                 items: [
                                   DropdownMenuItem<String>(
                                     value: "M",
@@ -447,28 +583,53 @@ class _RegisterPageState extends State<RegisterPage> {
                                     selectedGender = value;
                                   });
                                 },
-                                decoration: const InputDecoration(
-                                  labelText: 'Grade',
-                                  border: OutlineInputBorder(),
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  prefixIcon: Icon(Icons.wc, color: Color(0xFF152349)),
+                                  filled: true,
+                                  fillColor: Colors.white,
                                 ),
                               ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 16),
                               TextFormField(
                                 controller: _reasonController,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Alasan Bergabung',
-                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.question_answer, color: Color(0xFF152349)),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: Color(0xFF152349), width: 2),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 16),
                               TextFormField(
                                 controller: _phoneController,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'No. Telp',
-                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.phone, color: Color(0xFF152349)),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: Color(0xFF152349), width: 2),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 16),
                               Row(
                                 children: [
                                   Checkbox(
@@ -479,65 +640,93 @@ class _RegisterPageState extends State<RegisterPage> {
                                       });
                                     },
                                   ),
-                                  const Expanded(  // Wrap the Text widget with Expanded to allow wrapping
+                                  const Expanded(
                                     child: Text(
-                                      'bersèdia mentaati segala peraturan yg ada di sanggar baik jadwal pelatihan, kurikulum ataupun biaya2 dan kegìatan2 diluar sanggar',
-                                      softWrap: true,  // Allow text to wrap when it exceeds the container width
-                                      overflow: TextOverflow.visible,  // Allow the text to be fully visible if it overflows
+                                      'Bersedia mentaati segala peraturan yg ada di sanggar baik jadwal pelatihan, kurikulum ataupun biaya-biaya dan kegiatan diluar sanggar',
+                                      softWrap: true,
+                                      overflow: TextOverflow.visible,
                                       style: TextStyle(
-                                        fontSize: 12,  // Adjust font size if necessary
+                                        fontSize: 12,
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 20),
-                              // Register Button
-                              ElevatedButton(
-                                onPressed: registerUser,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF152349),
-                                  padding: const EdgeInsets.all(10.0),
-                                  textStyle: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 20,
-                                    color: Colors.white,
+                              const SizedBox(height: 16),
+                              MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF152349), Color(0xFF3a497b)],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.13),
+                                        blurRadius: 10,
+                                        offset: Offset(0, 4),
+                                      ),
+                                    ],
                                   ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(7),
+                                  child: ElevatedButton(
+                                    onPressed: registerUser,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      textStyle: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 20,
+                                        color: Colors.white,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                    child: const Text('Register', style: TextStyle(color: Colors.white)),
                                   ),
                                 ),
-                                child: const Text('Register', style: TextStyle(color: Colors.white)),
                               ),
-                              const SizedBox(height: 20),
-                              // Login Link
+                              const SizedBox(height: 10),
                               TextButton(
                                 onPressed: () => _navigateToLoginPage(context),
                                 child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    "Sudah punya akun? ",
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Color(0xFF152349),
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      "Sudah punya akun? ",
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.black87,
+                                      ),
                                     ),
-                                  ),
-                                  Text(
-                                    "Login sekarang",
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.blue,
-                                      fontWeight: FontWeight.bold,
+                                    Text(
+                                      "Login sekarang",
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF152349),
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      '© SEMARNARI Semarang 2024',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: Colors.black38, letterSpacing: 0.2),
                     ),
                   ],
                 ),
@@ -548,4 +737,23 @@ class _RegisterPageState extends State<RegisterPage> {
       ),
     );
   }
+}
+
+// Clipper modern untuk lengkungan biru atas (sama seperti login)
+class TopCurveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    Path path = Path();
+    path.lineTo(0, size.height - 60);
+    path.quadraticBezierTo(
+      size.width / 2, size.height + 40,
+      size.width, size.height - 60,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

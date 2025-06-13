@@ -82,6 +82,10 @@ class _SPPPaymentsPageState extends State<SPPPaymentsPage> {
   String status = 'Unpaid';
   String? processedBy;
   List<UserModel> students = [];
+  bool isLoading = false;
+
+  final _amountController = TextEditingController();
+  final _processedByController = TextEditingController();
 
   @override
   void initState() {
@@ -90,16 +94,19 @@ class _SPPPaymentsPageState extends State<SPPPaymentsPage> {
     month = now.month.toString();
     year = now.year.toString();
     paymentDate = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-
     _fetchStudents();
   }
 
   Future<void> _fetchStudents() async {
+    setState(() => isLoading = true);
     try {
       students = await getData('');
-      setState(() {});
+      setState(() => isLoading = false);
     } catch (e) {
-      print("Error fetching students: $e");
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gagal memuat data siswa"), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -115,7 +122,7 @@ class _SPPPaymentsPageState extends State<SPPPaymentsPage> {
       lastDate: lastDate,
     );
 
-    if (picked != null && picked != initialDate) {
+    if (picked != null) {
       setState(() {
         paymentDate = "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
       });
@@ -124,9 +131,10 @@ class _SPPPaymentsPageState extends State<SPPPaymentsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeColor = const Color(0xFF31416A);
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF152349),
+        backgroundColor: themeColor,
         automaticallyImplyLeading: false,
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -178,185 +186,268 @@ class _SPPPaymentsPageState extends State<SPPPaymentsPage> {
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            // Dropdown for selecting student
-            Container(
-              padding: const EdgeInsets.only(left: 14, right: 14),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.black26),
-                color: Colors.white, // Use white background for dropdown
-              ),
-              child: DropdownButton<String>(
-                isExpanded: true,
-                hint: const Text(
-                  'Select Student',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                ),
-                items: students
-                    .map((student) => DropdownMenuItem<String>(
-                  value: student.id, // Use the student's ID as value
-                  child: Text(student.fullname), // Display the fullname
-                ))
-                    .toList(),
-                value: selectedStudentId,
-                onChanged: (value) async {
-                  if (value != null) {
-                    setState(() {
-                      selectedStudentId = value;
-                      selectedStudentName = students
-                          .firstWhere((student) => student.id == value)
-                          .fullname;
-                    });
-                  }
-                },
-                icon: Icon(
-                  Icons.arrow_drop_down_circle,
-                  color: Colors.black, // Custom icon color
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Input fields appear after student is selected
-            if (selectedStudentName != null)
-              Column(
+        padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 24),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Card(
+            elevation: 6,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Month input
-                  TextField(
-                    controller: TextEditingController(text: month),
-                    onChanged: (value) {
-                      setState(() {
-                        month = value;
-                      });
-                    },
-                    decoration: InputDecoration(
-                      labelText: 'Bulan',
-                      border: OutlineInputBorder(),
+                  ShaderMask(
+                    shaderCallback: (bounds) => const LinearGradient(
+                      colors: [Color(0xFF31416A), Color(0xFF5B6BAA)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ).createShader(bounds),
+                    child: const Icon(Icons.payments_rounded, size: 54, color: Colors.white),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Pembayaran SPP',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF31416A),
+                      letterSpacing: 0.2,
                     ),
                   ),
-                  const SizedBox(height: 10),
-
-                  // Year input
-                  TextField(
-                    controller: TextEditingController(text: year),
-                    onChanged: (value) {
-                      setState(() {
-                        year = value;
-                      });
-                    },
-                    decoration: InputDecoration(
-                      labelText: 'Tahun',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Amount Paid input
-                  TextField(
-                    keyboardType: TextInputType.number,
-                    onChanged: (value) {
-                      setState(() {
-                        amountPaid = value;
-                      });
-                    },
-                    decoration: InputDecoration(
-                      labelText: 'Jumlah Dibayarkan',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Payment Date input using calendar
-                  GestureDetector(
-                    onTap: () {
-                      _selectPaymentDate(context);
-                    },
-                    child: AbsorbPointer(
-                      child: TextField(
-                        controller: TextEditingController(text: paymentDate),
-                        decoration: InputDecoration(
-                          labelText: 'Tanggal Pembayaran',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Status input (DropdownButton without custom styling)
+                  const SizedBox(height: 24),
+                  // Dropdown for selecting student
                   Container(
-                    padding: EdgeInsets.symmetric(vertical: 8.0),
-                    child: DropdownButtonFormField<String>(
-                      isExpanded: true,  // Set to expand to take the full width
-                      value: status,
-                      onChanged: (value) {
-                        setState(() {
-                          status = value!;
-                        });
-                      },
-                      decoration: InputDecoration(
-                        labelText: 'Status',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: <String>['Unpaid', 'Paid']
-                          .map<DropdownMenuItem<String>>((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(value),
-                        );
-                      }).toList(),
+                    padding: const EdgeInsets.only(left: 14, right: 14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.black12),
+                      color: Colors.white,
                     ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Processed By input (optional)
-                  TextField(
-                    onChanged: (value) {
-                      setState(() {
-                        processedBy = value;
-                      });
-                    },
-                    decoration: InputDecoration(
-                      labelText: 'Penanggung Jawab',
-                      border: OutlineInputBorder(),
-                    ),
+                    child: isLoading
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            child: Center(
+                              child: CircularProgressIndicator(strokeWidth: 2, color: themeColor),
+                            ),
+                          )
+                        : DropdownButton<String>(
+                            isExpanded: true,
+                            hint: const Text(
+                              'Pilih Siswa',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                            ),
+                            items: students
+                                .map((student) => DropdownMenuItem<String>(
+                                      value: student.id,
+                                      child: Text(student.fullname),
+                                    ))
+                                .toList(),
+                            value: selectedStudentId,
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  selectedStudentId = value;
+                                  selectedStudentName = students
+                                      .firstWhere((student) => student.id == value)
+                                      .fullname;
+                                });
+                              }
+                            },
+                            icon: Icon(
+                              Icons.arrow_drop_down_circle,
+                              color: themeColor,
+                            ),
+                            underline: const SizedBox(),
+                          ),
                   ),
                   const SizedBox(height: 20),
 
-                  // Submit Button
-                  ElevatedButton(
-                    onPressed: () {
-                      if (selectedStudentId != null &&
-                          month != null &&
-                          year != null &&
-                          amountPaid != null) {
-                        final paymentData = {
-                          'student': selectedStudentId,
-                          'month': month,
-                          'year': year,
-                          'amount_paid': amountPaid,
-                          'payment_date': paymentDate,
-                          'status': status,
-                          'processed_by': processedBy,
-                        };
-
-                        savePaymentData(context, paymentData);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Please fill all required fields'),
+                  // Input fields appear after student is selected
+                  if (selectedStudentName != null)
+                    Column(
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.person, color: Color(0xFF31416A), size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                selectedStudentName ?? '',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                  color: Color(0xFF31416A),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: TextField(
+                                controller: TextEditingController(text: month),
+                                onChanged: (value) {
+                                  setState(() {
+                                    month = value;
+                                  });
+                                },
+                                decoration: InputDecoration(
+                                  labelText: 'Bulan',
+                                  prefixIcon: Icon(Icons.calendar_month, color: themeColor),
+                                  filled: true,
+                                  fillColor: const Color(0xFFF6F8FB),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Flexible(
+                              child: TextField(
+                                controller: TextEditingController(text: year),
+                                onChanged: (value) {
+                                  setState(() {
+                                    year = value;
+                                  });
+                                },
+                                decoration: InputDecoration(
+                                  labelText: 'Tahun',
+                                  prefixIcon: Icon(Icons.date_range, color: themeColor),
+                                  filled: true,
+                                  fillColor: const Color(0xFFF6F8FB),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _amountController,
+                          keyboardType: TextInputType.number,
+                          onChanged: (value) {
+                            setState(() {
+                              amountPaid = value;
+                            });
+                          },
+                          decoration: InputDecoration(
+                            labelText: 'Jumlah Dibayarkan',
+                            prefixIcon: Icon(Icons.attach_money, color: themeColor),
+                            filled: true,
+                            fillColor: const Color(0xFFF6F8FB),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                        );
-                      }
-                    },
-                    child: Text('Submit Payment'),
-                  ),
+                        ),
+                        const SizedBox(height: 14),
+                        GestureDetector(
+                          onTap: () {
+                            _selectPaymentDate(context);
+                          },
+                          child: AbsorbPointer(
+                            child: TextField(
+                              controller: TextEditingController(text: paymentDate),
+                              decoration: InputDecoration(
+                                labelText: 'Tanggal Pembayaran',
+                                prefixIcon: Icon(Icons.event, color: themeColor),
+                                filled: true,
+                                fillColor: const Color(0xFFF6F8FB),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          value: status,
+                          onChanged: (value) {
+                            setState(() {
+                              status = value!;
+                            });
+                          },
+                          decoration: InputDecoration(
+                            labelText: 'Status',
+                            prefixIcon: Icon(Icons.verified, color: themeColor),
+                            filled: true,
+                            fillColor: const Color(0xFFF6F8FB),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          items: <String>['Unpaid', 'Paid']
+                              .map<DropdownMenuItem<String>>((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(value),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _processedByController,
+                          onChanged: (value) {
+                            setState(() {
+                              processedBy = value;
+                            });
+                          },
+                          decoration: InputDecoration(
+                            labelText: 'Penanggung Jawab',
+                            prefixIcon: Icon(Icons.account_box, color: themeColor),
+                            filled: true,
+                            fillColor: const Color(0xFFF6F8FB),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              if (selectedStudentId != null &&
+                                  month != null &&
+                                  year != null &&
+                                  (_amountController.text.isNotEmpty || amountPaid != null)) {
+                                final paymentData = {
+                                  'student': selectedStudentId,
+                                  'month': month,
+                                  'year': year,
+                                  'amount_paid': _amountController.text.isNotEmpty ? _amountController.text : amountPaid,
+                                  'payment_date': paymentDate,
+                                  'status': status,
+                                  'processed_by': _processedByController.text.isNotEmpty ? _processedByController.text : processedBy,
+                                };
+                                savePaymentData(context, paymentData);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Mohon lengkapi semua data yang diperlukan'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.save_alt, color: Colors.white),
+                            label: const Text(
+                              'Simpan Pembayaran',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: themeColor,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
-          ],
+            ),
+          ),
         ),
       ),
     );

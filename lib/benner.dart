@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:image/image.dart' as img;
-import 'package:photo_view/photo_view.dart'; // For zoomable image preview
+import 'package:photo_view/photo_view.dart';
 
 class BannerPage extends StatefulWidget {
   @override
@@ -17,6 +17,7 @@ class _BannerPageState extends State<BannerPage> {
   String errorMessage = '';
   final String apiUrl = "https://semarnari.sportballnesia.com/api/master/data/benner";
   final String apiUrlDelete = "https://semarnari.sportballnesia.com/api/master/data/benner_delete";
+  final String apiUrlAdd = "https://semarnari.sportballnesia.com/api/master/data/benner_add";
   final ImagePicker _picker = ImagePicker();
   File? _imageFile;
 
@@ -31,170 +32,116 @@ class _BannerPageState extends State<BannerPage> {
       isLoading = true;
       errorMessage = '';
     });
-
     try {
       final response = await http.get(Uri.parse(apiUrl));
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
           banners = data['data'] ?? [];
           isLoading = false;
         });
-        print('Banners loaded successfully:');
-        print(banners);
       } else {
         setState(() {
-          errorMessage = 'Failed to load banners: ${response.statusCode}';
+          errorMessage = 'Gagal memuat banner';
           isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        errorMessage = 'Error: $e';
+        errorMessage = 'Terjadi kesalahan: $e';
         isLoading = false;
       });
     }
-  }
-
-  Future<File> _compressImage(File file) async {
-    final bytes = await file.readAsBytes();
-    final image = img.decodeImage(bytes);
-
-    // Resize image to max width 800px (maintain aspect ratio)
-    final resized = img.copyResize(image!, width: 800);
-
-    // Compress with quality 85%
-    final compressedBytes = img.encodeJpg(resized, quality: 85);
-
-    // Create temp file
-    final tempDir = Directory.systemTemp;
-    final tempFile = File('${tempDir.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.jpg');
-    await tempFile.writeAsBytes(compressedBytes);
-
-    return tempFile;
-  }
-
-  Future<String> _imageToBase64(File file) async {
-    final bytes = await file.readAsBytes();
-    return base64Encode(bytes);
   }
 
   Future<void> _addBanner() async {
     if (_imageFile == null) return;
-
-    setState(() {
-      isLoading = true;
-    });
-
+    setState(() => isLoading = true);
     try {
-      // 1. Compress the image
-      final compressedFile = await _compressImage(_imageFile!);
-
-      // 2. Convert to base64
-      final base64Image = await _imageToBase64(compressedFile);
-
-      // 3. Prepare request body
-      final requestBody = json.encode({
-        'benner': 'data:image/jpeg;base64,$base64Image',
-      });
-
-      // 4. Send to API
+      final bytes = await _imageFile!.readAsBytes();
+      final base64Image = base64Encode(bytes);
       final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: requestBody,
+        Uri.parse(apiUrlAdd),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'benner': 'data:image/png;base64,$base64Image'}),
       );
-
-      if (response.statusCode == 200) {
-        _fetchBanners(); // Refresh list
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        _imageFile = null;
+        _fetchBanners();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Banner added successfully')),
+          SnackBar(content: Text('Banner berhasil ditambahkan'), backgroundColor: Colors.green),
         );
       } else {
-        setState(() {
-          errorMessage = 'Failed to add banner: ${response.body}';
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menambah banner'), backgroundColor: Colors.red),
+        );
       }
     } catch (e) {
-      setState(() {
-        errorMessage = 'Error: $e';
-      });
-    } finally {
-      setState(() {
-        isLoading = false;
-        _imageFile = null;
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Terjadi kesalahan: $e'), backgroundColor: Colors.red),
+      );
     }
+    setState(() => isLoading = false);
   }
 
   Future<void> _deleteBanner(String id) async {
-    setState(() {
-      isLoading = true;
-    });
-
+    setState(() => isLoading = true);
     try {
       final response = await http.post(
-        Uri.parse(apiUrlDelete), // Make sure apiUrl is defined for your endpoint
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'id': id,
-        }),
+        Uri.parse(apiUrlDelete),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'id': id}),
       );
-
       if (response.statusCode == 200) {
-        _fetchBanners(); // Refresh list
+        _fetchBanners();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Banner deleted successfully')),
+          SnackBar(content: Text('Banner berhasil dihapus'), backgroundColor: Colors.green),
         );
       } else {
-        setState(() {
-          errorMessage = 'Failed to delete banner: ${response.statusCode} - ${response.body}';
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menghapus banner'), backgroundColor: Colors.red),
+        );
       }
     } catch (e) {
-      setState(() {
-        errorMessage = 'Error: $e';
-      });
-    } finally {
-      setState(() {
-        isLoading = false;
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Terjadi kesalahan: $e'), backgroundColor: Colors.red),
+      );
     }
+    setState(() => isLoading = false);
   }
 
   Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
+    final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (picked != null) {
       setState(() {
-        _imageFile = File(pickedFile.path);
+        _imageFile = File(picked.path);
       });
     }
   }
 
-  Widget _buildBannerImage(String imageUrl) {
-    // Check if the URL is base64 encoded
+  Widget _buildBannerImage(String imageUrl, {double size = 70}) {
     if (imageUrl.startsWith('data:image')) {
       final base64String = imageUrl.split(',').last;
-      return Image.memory(
-        base64Decode(base64String),
-        width: 60,
-        height: 60,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image),
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Image.memory(
+          base64Decode(base64String),
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image, size: size),
+        ),
       );
     } else {
-      // Regular network image
-      return Image.network(
-        imageUrl,
-        width: 60,
-        height: 60,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image),
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Image.network(
+          imageUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image, size: size),
+        ),
       );
     }
   }
@@ -204,7 +151,8 @@ class _BannerPageState extends State<BannerPage> {
       context,
       MaterialPageRoute(
         builder: (context) => Scaffold(
-          appBar: AppBar(),
+          backgroundColor: Colors.black,
+          appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
           body: Center(
             child: PhotoView(
               imageProvider: imageUrl.startsWith('data:image')
@@ -219,59 +167,209 @@ class _BannerPageState extends State<BannerPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Manage Banners'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh),
-            onPressed: _fetchBanners,
+  Widget _buildUploadPreview() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+      margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF31416A), Color(0xFF5B6BAA)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 16,
+            offset: Offset(0, 8),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.file(_imageFile!, width: 70, height: 70, fit: BoxFit.cover),
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Text(
+                "Preview Banner",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: _addBanner,
+              icon: const Icon(Icons.cloud_upload, color: Colors.white),
+              label: const Text("Upload", style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              onPressed: () => setState(() => _imageFile = null),
+              tooltip: "Cancel",
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final themeColor = const Color(0xFF31416A);
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: themeColor,
+        elevation: 0,
+        title: Row(
+          children: [
+            ShaderMask(
+              shaderCallback: (bounds) => const LinearGradient(
+                colors: [Color(0xFF31416A), Color(0xFF5B6BAA)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ).createShader(bounds),
+              child: const Icon(Icons.image, size: 32, color: Colors.white),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Manajemen Banner',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _fetchBanners,
+            tooltip: "Refresh",
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: _pickImage,
-        child: Icon(Icons.add),
+        backgroundColor: themeColor,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text("Tambah Banner", style: TextStyle(color: Colors.white)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
-      body: isLoading
-          ? Center(child: CircularProgressIndicator())
-          : errorMessage.isNotEmpty
-          ? Center(child: Text(errorMessage))
-          : banners.isEmpty
-          ? Center(child: Text('No banners available'))
-          : ListView.builder(
-        itemCount: banners.length,
-        itemBuilder: (context, index) {
-          final banner = banners[index];
-          return ListTile(
-            leading: GestureDetector(
-              onTap: () => _showImagePreview(banner['benner']),
-              child: _buildBannerImage(banner['benner']),
-            ),
-            title: Text('Banner ${banner['id']}'),
-            subtitle: Text(banner['created_at'] ?? ''),
-            trailing: IconButton(
-              icon: Icon(Icons.delete, color: Colors.red),
-              onPressed: () => _showDeleteDialog(banner['id']),
-            ),
-          );
-        },
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFF6F8FB), Color(0xFFE0EAFC)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: isLoading
+            ? Center(child: CircularProgressIndicator(color: themeColor))
+            : errorMessage.isNotEmpty
+                ? Center(child: Text(errorMessage, style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)))
+                : Column(
+                    children: [
+                      if (_imageFile != null) _buildUploadPreview(),
+                      Expanded(
+                        child: banners.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.image_not_supported, size: 60, color: themeColor.withOpacity(0.2)),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'Belum ada banner',
+                                      style: TextStyle(
+                                        color: themeColor,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.separated(
+                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                                itemCount: banners.length,
+                                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                                itemBuilder: (context, index) {
+                                  final banner = banners[index];
+                                  return AnimatedContainer(
+                                    duration: Duration(milliseconds: 350 + index * 40),
+                                    curve: Curves.easeOutCubic,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(22),
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFF31416A), Color(0xFF5B6BAA)],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.08),
+                                          blurRadius: 16,
+                                          offset: const Offset(0, 8),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ListTile(
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                                      leading: GestureDetector(
+                                        onTap: () => _showImagePreview(banner['benner']),
+                                        child: _buildBannerImage(banner['benner']),
+                                      ),
+                                      title: Text(
+                                        'Banner #${banner['id']}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      subtitle: Row(
+                                        children: [
+                                          const Icon(Icons.calendar_today, color: Colors.white70, size: 15),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            banner['created_at'] ?? '',
+                                            style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                          ),
+                                        ],
+                                      ),
+                                      trailing: IconButton(
+                                        icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                        onPressed: () => _showDeleteDialog(banner['id']),
+                                        tooltip: "Hapus Banner",
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
       ),
-      persistentFooterButtons: _imageFile != null
-          ? [
-        ElevatedButton(
-          onPressed: _addBanner,
-          child: Text('Upload Banner'),
-        ),
-        ElevatedButton(
-          onPressed: () => setState(() => _imageFile = null),
-          child: Text('Cancel'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
-        ),
-      ]
-          : null,
     );
   }
 
@@ -279,21 +377,22 @@ class _BannerPageState extends State<BannerPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Delete Banner'),
-        content: Text('Are you sure you want to delete this banner?'),
+        title: const Text('Hapus Banner'),
+        content: const Text('Yakin ingin menghapus banner ini?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
+            child: const Text('Batal'),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _deleteBanner(id);
             },
-            child: Text('Delete', style: TextStyle(color: Colors.red)),
+            child: const Text('Hapus', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
-  }}
+  }
+}

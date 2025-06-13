@@ -15,9 +15,11 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
   TextEditingController emailController = TextEditingController();
   TextEditingController passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   Future<void> _registerAdmin() async {
     if (_formKey.currentState!.validate()) {
+      setState(() => _isLoading = true);
       final response = await http.post(
         Uri.parse('https://semarnari.sportballnesia.com/api/master/user/register_admin'),
         headers: {'Content-Type': 'application/json'},
@@ -28,6 +30,7 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
           'password': passwordController.text,
         }),
       );
+      setState(() => _isLoading = false);
 
       final responseData = json.decode(response.body);
       if (response.statusCode == 201 && responseData['status'] == 'success') {
@@ -97,77 +100,124 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
           ],
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              TextFormField(
-                controller: fullnameController,
-                decoration: InputDecoration(
-                  labelText: 'Fullname',
-                  prefixIcon: Icon(Icons.person),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                validator: (value) => value!.isEmpty ? 'Enter fullname' : null,
-              ),
-              SizedBox(height: 10),
-              TextFormField(
-                controller: usernameController,
-                decoration: InputDecoration(
-                  labelText: 'Username',
-                  prefixIcon: Icon(Icons.account_circle),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                validator: (value) => value!.isEmpty ? 'Enter username' : null,
-              ),
-              SizedBox(height: 10),
-              TextFormField(
-                controller: emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: Icon(Icons.email),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) => value!.isEmpty ? 'Enter email' : null,
-              ),
-              SizedBox(height: 10),
-              TextFormField(
-                controller: passwordController,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: Icon(Icons.lock),
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
+      body: Center(
+        child: SingleChildScrollView(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 420),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 32),
+            child: Card(
+              elevation: 6,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 32),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [Color(0xFF31416A), Color(0xFF5B6BAA)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ).createShader(bounds),
+                        child: const Icon(Icons.admin_panel_settings_rounded, size: 54, color: Colors.white),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Buat Admin Baru',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF31416A),
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      TextFormField(
+                        controller: fullnameController,
+                        decoration: InputDecoration(
+                          labelText: 'Fullname',
+                          prefixIcon: Icon(Icons.person, color: Color(0xFF31416A)),
+                          filled: true,
+                          fillColor: const Color(0xFFF6F8FB),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        validator: (value) => value!.isEmpty ? 'Enter fullname' : null,
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: usernameController,
+                        decoration: InputDecoration(
+                          labelText: 'Username',
+                          prefixIcon: Icon(Icons.account_circle, color: Color(0xFF31416A)),
+                          filled: true,
+                          fillColor: const Color(0xFFF6F8FB),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        validator: (value) => value!.isEmpty ? 'Enter username' : null,
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: emailController,
+                        decoration: InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: Icon(Icons.email, color: Color(0xFF31416A)),
+                          filled: true,
+                          fillColor: const Color(0xFFF6F8FB),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (value) => value!.isEmpty ? 'Enter email' : null,
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: passwordController,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          prefixIcon: Icon(Icons.lock, color: Color(0xFF31416A)),
+                          suffixIcon: IconButton(
+                            icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off, color: Color(0xFF31416A)),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF6F8FB),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        obscureText: _obscurePassword,
+                        validator: (value) => value!.isEmpty ? 'Enter password' : null,
+                      ),
+                      const SizedBox(height: 28),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isLoading ? null : _registerAdmin,
+                          icon: _isLoading
+                              ? SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Icon(Icons.save_alt, color: Colors.white),
+                          label: const Text('Register Admin', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF31416A),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                obscureText: _obscurePassword,
-                validator: (value) => value!.isEmpty ? 'Enter password' : null,
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _registerAdmin,
-                  child: Text('Register Admin', style: TextStyle(color: Colors.white)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF152349),
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

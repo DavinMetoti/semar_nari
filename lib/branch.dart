@@ -47,7 +47,6 @@ class _BranchPageState extends State<BranchPage> {
 
   Future<void> _fetchBranches() async {
     final response = await http.get(Uri.parse('https://semarnari.sportballnesia.com/api/master/data/get_all_branch'));
-    print("Response Body: ${response.body}"); // Debugging
 
     if (response.statusCode == 200) {
       final responseData = json.decode(response.body);
@@ -60,10 +59,6 @@ class _BranchPageState extends State<BranchPage> {
           _isLoading = false;
         });
 
-        // Cetak daftar branch yang telah di-fetch
-        for (var branch in _branches) {
-          print("Branch: ID=${branch.id}, Name=${branch.name}, Lat=${branch.latitude}, Lng=${branch.longitude}");
-        }
       } else {
         _showError(responseData['message'] ?? 'Failed to fetch data');
       }
@@ -83,7 +78,6 @@ class _BranchPageState extends State<BranchPage> {
         "longitude": _longitudeController.text,
       }),
     );
-    print(response.body);
 
     if (response.statusCode == 201) {
       final responseData = json.decode(response.body);
@@ -104,17 +98,12 @@ class _BranchPageState extends State<BranchPage> {
 
     // Log payload yang dikirim
     final payload = json.encode({"id": id.toString()});
-    print("Payload Sent: $payload");
 
     final response = await http.post(
       Uri.parse('https://semarnari.sportballnesia.com/api/master/data/delete_branch'),
       headers: {"Content-Type": "application/json"},
       body: payload,
     );
-
-    // Log response dari server
-    print("Response Status Code: ${response.statusCode}");
-    print("Response Body: ${response.body}");
 
     if (response.statusCode == 200) {
       final responseData = json.decode(response.body);
@@ -240,54 +229,199 @@ class _BranchPageState extends State<BranchPage> {
         ),
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : Column(
-        children: [
-          Container(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _showCreateBranchModal,
-              child: Text('Buat Sanggar Baru', style: TextStyle(color: Colors.white)),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            ),
-          ),
-          SizedBox(height: 20),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _branches.length,
-              itemBuilder: (ctx, index) {
-                final branch = _branches[index];
-                return Card(
-                  margin: EdgeInsets.symmetric(vertical: 8.0),
-                  elevation: 5.0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    "Memuat data cabang...",
+                    style: TextStyle(color: Color(0xFF31416A), fontWeight: FontWeight.w600),
                   ),
-                  child: ListTile(
-                    contentPadding: EdgeInsets.all(15),
-                    leading: Icon(Icons.location_on, color: Colors.teal),
-                    title: Text(
-                      branch.name,
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Latitude: ${branch.latitude}', style: TextStyle(color: Colors.grey[600])),
-                        Text('Longitude: ${branch.longitude}', style: TextStyle(color: Colors.grey[600])),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                // Header Card
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF31416A), Color(0xFF5B6BAA)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.06),
+                          blurRadius: 16,
+                          offset: const Offset(0, 8),
+                        ),
                       ],
                     ),
-                    trailing: IconButton(
-                      icon: Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteBranch(branch.id),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 22),
+                      child: Row(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.18),
+                              shape: BoxShape.circle,
+                            ),
+                            padding: const EdgeInsets.all(16),
+                            child: const Icon(
+                              Icons.map_rounded,
+                              color: Colors.white,
+                              size: 36,
+                            ),
+                          ),
+                          const SizedBox(width: 18),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  "Sanggar",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 18,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  "Total cabang: ${_branches.length}",
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: _showCreateBranchModal,
+                            icon: const Icon(Icons.add, color: Colors.white, size: 20),
+                            label: const Text(
+                              'Tambah',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.teal,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              textStyle: const TextStyle(fontSize: 15),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                );
-              },
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: _branches.isEmpty
+                      ? Center(
+                          child: Text(
+                            "Belum ada cabang terdaftar.",
+                            style: TextStyle(color: Color(0xFF31416A), fontWeight: FontWeight.w600),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          itemCount: _branches.length,
+                          itemBuilder: (ctx, index) {
+                            final branch = _branches[index];
+                            return AnimatedContainer(
+                              duration: Duration(milliseconds: 350 + index * 40),
+                              curve: Curves.easeOutCubic,
+                              margin: const EdgeInsets.symmetric(vertical: 8.0),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(18),
+                                  onTap: () {},
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(18),
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFFe0eafc), Color(0xFFcfdef3)],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.04),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ListTile(
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                                      leading: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.teal.withOpacity(0.12),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        padding: const EdgeInsets.all(10),
+                                        child: const Icon(Icons.location_on, color: Colors.teal, size: 28),
+                                      ),
+                                      title: Text(
+                                        branch.name,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF31416A),
+                                        ),
+                                      ),
+                                      subtitle: Padding(
+                                        padding: const EdgeInsets.only(top: 6.0),
+                                        child: SingleChildScrollView(
+                                          scrollDirection: Axis.horizontal,
+                                          child: Row(
+                                            children: [
+                                              const Icon(Icons.my_location, size: 16, color: Color(0xFF31416A)),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Lat: ${branch.latitude}',
+                                                style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              const Icon(Icons.explore, size: 16, color: Color(0xFF31416A)),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Lng: ${branch.longitude}',
+                                                style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      trailing: IconButton(
+                                        icon: const Icon(Icons.delete, color: Colors.red, size: 26),
+                                        onPressed: () => _deleteBranch(branch.id),
+                                        tooltip: "Hapus cabang",
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }

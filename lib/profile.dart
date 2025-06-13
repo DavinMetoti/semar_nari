@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:ui'; // Tambahkan untuk efek glassmorphism
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:semarnari_apk/services/apiServices.dart';
 import 'package:semarnari_apk/login.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:http/http.dart' as http; // Tambahkan untuk http upload
+import 'package:mime/mime.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -18,12 +23,13 @@ class _ProfilePageState extends State<ProfilePage> {
   final ApiService apiService = ApiService();
   bool _isLoading = true; // Default to true to show skeleton on load
   final GlobalKey<RefreshIndicatorState> _refreshIndicatorKey =
-  GlobalKey<RefreshIndicatorState>();
+      GlobalKey<RefreshIndicatorState>();
 
   // Controllers for the password fields
   final TextEditingController _oldPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
+  bool _isUploadingPhoto = false;
 
   @override
   void initState() {
@@ -36,7 +42,6 @@ class _ProfilePageState extends State<ProfilePage> {
     final username = prefs.getString('username');
 
     if (username == null || username.isEmpty) {
-      print("Username is null or empty!");
       return;
     }
 
@@ -48,7 +53,7 @@ class _ProfilePageState extends State<ProfilePage> {
       await Future.delayed(const Duration(milliseconds: 500)); // Simulate a delay
 
       final response =
-      await apiService.post('user/get', {'username': username});
+          await apiService.post('user/get', {'username': username});
       final Map<String, dynamic> responseBody = jsonDecode(response.body);
 
       if (responseBody['data'] != null && responseBody['data'].isNotEmpty) {
@@ -75,13 +80,11 @@ class _ProfilePageState extends State<ProfilePage> {
           _isLoading = false;
         });
       } else {
-        print(responseBody['message'] ?? 'No data available');
         setState(() {
           _isLoading = false;
         });
       }
     } catch (e) {
-      print("Error fetching data: $e");
       setState(() {
         _isLoading = false;
       });
@@ -97,12 +100,10 @@ class _ProfilePageState extends State<ProfilePage> {
     final confirmPassword = _confirmPasswordController.text;
 
     if (username == null || username.isEmpty) {
-      print("Username is null or empty!");
       return;
     }
 
     if (newPassword != confirmPassword) {
-      print("New password and confirm password do not match!");
       return;
     }
 
@@ -131,7 +132,6 @@ class _ProfilePageState extends State<ProfilePage> {
         );
       }
     } catch (e) {
-      print("Error occurred: $e");
       // Show error message if the request fails
       _showBottomSheetAlert(
         context,
@@ -185,7 +185,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 // Only show the button if the background color is green (success)
                 if (backgroundColor == Colors.green)
                   ElevatedButton(
-                    onPressed: () async{
+                    onPressed: () async {
                       final prefs = await SharedPreferences.getInstance();
                       await prefs.clear();
                       Navigator.pop(context); // Close bottom sheet
@@ -226,6 +226,79 @@ class _ProfilePageState extends State<ProfilePage> {
     Navigator.pushReplacementNamed(context, '/login'); // Navigate to login page
   }
 
+  Future<void> _pickAndUploadPhoto() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+
+    if (pickedFile == null) return;
+
+    setState(() {
+      _isUploadingPhoto = true;
+    });
+
+    try {
+      final file = File(pickedFile.path);
+      final bytes = await file.readAsBytes();
+
+      final mimeType = lookupMimeType(pickedFile.path);
+      if (mimeType == null || !mimeType.startsWith('image/')) {
+        _showBottomSheetAlert(context, "File yang dipilih bukan gambar yang valid!", Colors.red);
+        return;
+      }
+
+      final photoBase64 = 'data:$mimeType;base64,${base64Encode(bytes)}';
+
+      // Ambil username dari SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final username = prefs.getString('username');
+
+      if (username == null || username.isEmpty) {
+        _showBottomSheetAlert(context, "Username tidak ditemukan!", Colors.red);
+        return;
+      }
+
+      // Ambil account_id berdasarkan username
+      final responseUser = await apiService.post('user/get', {'username': username});
+      final responseBodyUser = jsonDecode(responseUser.body);
+
+      if (responseUser.statusCode != 200 || responseBodyUser['data'] == null) {
+        _showBottomSheetAlert(context, "Gagal mengambil data user!", Colors.red);
+        return;
+      }
+
+      final accountId = responseBodyUser['data']['id'];
+
+      // Kirim foto ke server
+      final url = Uri.parse('https://semarnari.sportballnesia.com/api/master/user/update_photo_profile');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'account_id': accountId,
+          'photo_base64': photoBase64,
+        }),
+      );
+
+      final responseBody = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && responseBody['status'] == true) {
+        _showBottomSheetAlert(context, "Foto profil berhasil diupdate!", Colors.green);
+        await _loadUserData();
+      } else {
+        final msg = responseBody['message'] ?? "Gagal update foto.";
+        _showBottomSheetAlert(context, "Gagal update foto: $msg", Colors.red);
+      }
+    } catch (e) {
+      _showBottomSheetAlert(context, "Terjadi kesalahan saat upload foto.", Colors.red);
+    } finally {
+      setState(() {
+        _isUploadingPhoto = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -285,219 +358,370 @@ class _ProfilePageState extends State<ProfilePage> {
           children: [
             _isLoading
                 ? Skeletonizer(
-              child: Column(
-                children: [
-                  Container(
-                    height: 100,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ...List.generate(
-                    4,
-                        (index) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0),
-                      child: Container(
-                        height: 20,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(12),
+                    child: Column(
+                      children: [
+                        Container(
+                          height: 100,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 16),
+                        ...List.generate(
+                          4,
+                          (index) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: Container(
+                              height: 20,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade300,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            )
+                  )
                 : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Profile Header Section
-                Container(
-                  padding: const EdgeInsets.all(16.0),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF152349),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        radius: 40,
-                        backgroundImage: NetworkImage(
-                          data['photo'] ??
-                              'https://via.placeholder.com/150',
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              data['fullName'] ?? 'No Name',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                              ),
+                      // Profile Header Section
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: Container(
+                          width: double.infinity,
+                          height: 140,
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Color(0xFF152349),
+                                Color(0xFF31416A),
+                                Color(0xFF5B6BAA),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              data['email'] ?? 'No Email',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.all(20.0),
+                            height: 140,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Icon(
-                                  data['active'] == 'Active'
-                                      ? Icons.check_circle
-                                      : Icons.cancel,
-                                  color: data['active'] == 'Active'
-                                      ? Colors.green
-                                      : Colors.red,
-                                  size: 16,
+                                Stack(
+                                  children: [
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.15),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: CircleAvatar(
+                                        radius: 44,
+                                        backgroundColor: Colors.white,
+                                        child: (data['photo'] != null &&
+                                                data['photo'].toString().isNotEmpty)
+                                            ? (() {
+                                                final photo = data['photo'].toString();
+                                                if (photo.startsWith('data:image/')) {
+                                                  // Extract base64 string
+                                                  final base64Str = photo.split(',').last;
+                                                  try {
+                                                    return ClipOval(
+                                                      child: Image.memory(
+                                                        base64Decode(base64Str),
+                                                        width: 84,
+                                                        height: 84,
+                                                        fit: BoxFit.cover,
+                                                      ),
+                                                    );
+                                                  } catch (_) {
+                                                    return Icon(
+                                                      Icons.account_circle,
+                                                      size: 84,
+                                                      color: Colors.grey.shade300,
+                                                    );
+                                                  }
+                                                } else {
+                                                  return ClipOval(
+                                                    child: Image.network(
+                                                      photo,
+                                                      width: 84,
+                                                      height: 84,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (context, error, stackTrace) => Icon(
+                                                        Icons.account_circle,
+                                                        size: 84,
+                                                        color: Colors.grey.shade300,
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                              })()
+                                            : Icon(
+                                                Icons.account_circle,
+                                                size: 84,
+                                                color: Colors.grey.shade300,
+                                              ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 0,
+                                      right: 0,
+                                      child: GestureDetector(
+                                        onTap: _isUploadingPhoto ? null : _pickAndUploadPhoto,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            shape: BoxShape.circle,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black12,
+                                                blurRadius: 4,
+                                                offset: Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          padding: const EdgeInsets.all(6),
+                                          child: _isUploadingPhoto
+                                              ? SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                                )
+                                              : Icon(Icons.camera_alt, color: Color(0xFF31416A), size: 20),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  data['active'] ?? 'Unknown',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
+                                const SizedBox(width: 22),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        data['fullName'] ?? 'No Name',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 20,
+                                          letterSpacing: 0.2,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.email_outlined,
+                                            color: Colors.white70,
+                                            size: 16,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Flexible(
+                                            child: Text(
+                                              data['email'] ?? 'No Email',
+                                              style: const TextStyle(
+                                                color: Colors.white70,
+                                                fontSize: 13,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: data['active'] == 'Active'
+                                              ? Colors.green.withOpacity(0.15)
+                                              : Colors.red.withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              data['active'] == 'Active'
+                                                  ? Icons.check_circle
+                                                  : Icons.cancel,
+                                              color: data['active'] == 'Active'
+                                                  ? Colors.green
+                                                  : Colors.red,
+                                              size: 16,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              data['active'] ?? 'Unknown',
+                                              style: TextStyle(
+                                                color: data['active'] == 'Active'
+                                                    ? Colors.green
+                                                    : Colors.red,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
-                          ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      // Details Section
+                      Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                        color: Colors.white,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 18.0),
+                          child: Column(
+                            children: [
+                              _buildDetailRow(
+                                icon: Icons.star_rounded,
+                                label: 'Tingkat',
+                                value: (int.tryParse(data['grade'].toString()) ?? 0) == 0
+                                    ? 'TK'
+                                    : (int.tryParse(data['grade'].toString()) ?? 0).toString(),
+                              ),
+                              _buildDetailRow(
+                                icon: Icons.class_outlined,
+                                label: 'Kelas',
+                                value: data['class_name'] == null || data['class_name'].toString().isEmpty
+                                    ? 'Belum ditentukan'
+                                    : data['class_name'] ?? 'TK',
+                              ),
+                              _buildDetailRow(
+                                icon: Icons.location_on_outlined,
+                                label: 'Sanggar',
+                                value: data['branch'] ?? 'No Branch',
+                              ),
+                              _buildDetailRow(
+                                icon: Icons.cake_outlined,
+                                label: 'Tanggal Lahir',
+                                value: data['date_of_birth'] ?? 'No Date',
+                              ),
+                              _buildDetailRow(
+                                icon: Icons.account_balance_outlined,
+                                label: 'Agama',
+                                value: data['religion'] ?? 'Not specified',
+                              ),
+                              _buildDetailRow(
+                                icon: Icons.calendar_month_outlined,
+                                label: 'Bergabung',
+                                value: data['created_at'] != null
+                                    ? DateFormat.yMMMMd().format(DateTime.parse(data['created_at']))
+                                    : 'No Date',
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      // Change Password Section
+                      Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                        color: Colors.white,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 18.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Ganti Password',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF152349),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              TextField(
+                                controller: _oldPasswordController,
+                                decoration: InputDecoration(
+                                  labelText: 'Password Lama',
+                                  prefixIcon: const Icon(Icons.lock_outline),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                obscureText: true,
+                              ),
+                              const SizedBox(height: 14),
+                              TextField(
+                                controller: _newPasswordController,
+                                decoration: InputDecoration(
+                                  labelText: 'Password Baru',
+                                  prefixIcon: const Icon(Icons.lock_outline),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                obscureText: true,
+                              ),
+                              const SizedBox(height: 14),
+                              TextField(
+                                controller: _confirmPasswordController,
+                                decoration: InputDecoration(
+                                  labelText: 'Konfirmasi Password',
+                                  prefixIcon: const Icon(Icons.lock_outline),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                obscureText: true,
+                              ),
+                              const SizedBox(height: 18),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: ElevatedButton.icon(
+                                  onPressed: _changePassword,
+                                  icon: const Icon(Icons.save_alt, color: Colors.white),
+                                  label: const Text(
+                                    'Change Password',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF152349),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 10),
-                // Details Section
-                Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      children: [
-                        _buildDetailRow(
-                          icon: Icons.star,
-                          label: 'Tingkat',
-                          value: (int.tryParse(data['grade'].toString()) ?? 0) == 0
-                              ? 'TK'
-                              : (int.tryParse(data['grade'].toString()) ?? 0).toString(),
-                        ),
-                        _buildDetailRow(
-                          icon: Icons.school,
-                          label: 'Kelas',
-                          value: data['class_name'] == null || data['class_name'].toString().isEmpty
-                              ? 'Belum ditentukan'
-                              : data['class_name'] ?? 'TK',  // Fallback to 'TK' if class_name is null
-                        ),
-                        _buildDetailRow(
-                          icon: Icons.room,
-                          label: 'Sanggar',
-                          value: data['branch'] ?? 'No Branch',
-                        ),
-                        _buildDetailRow(
-                          icon: Icons.cake,
-                          label: 'Tanggal Lahir',
-                          value: data['date_of_birth'] ?? 'No Date',
-                        ),
-                        _buildDetailRow(
-                          icon: Icons.account_balance,
-                          label: 'Agama',
-                          value: data['religion'] ?? 'Not specified',
-                        ),
-                        _buildDetailRow(
-                          icon: Icons.date_range,
-                          label: 'Bergabung Pada',
-                          value: data['created_at'] != null
-                              ? DateFormat.yMMMMd().format(DateTime.parse(data['created_at']))
-                              : 'No Date',
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Change Password Section
-                Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Ganti Password',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _oldPasswordController,
-                          decoration: const InputDecoration(
-                            labelText: 'Password Lama',
-                            prefixIcon: Icon(Icons.lock),
-                            border: OutlineInputBorder(),
-                          ),
-                          obscureText: true,
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _newPasswordController,
-                          decoration: const InputDecoration(
-                            labelText: 'Password Baru',
-                            prefixIcon: Icon(Icons.lock),
-                            border: OutlineInputBorder(),
-                          ),
-                          obscureText: true,
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _confirmPasswordController,
-                          decoration: const InputDecoration(
-                            labelText: 'Konfirmasi Password',
-                            prefixIcon: Icon(Icons.lock),
-                            border: OutlineInputBorder(),
-                          ),
-                          obscureText: true,
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _changePassword,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            minimumSize: const Size(double.infinity, 50),
-                          ),
-                          child: const Text('Change Password', style: TextStyle(
-                            color: Colors.white
-                          ),),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
       ),
@@ -506,13 +730,37 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildDetailRow({required IconData icon, required String label, required String value}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 7.0),
       child: Row(
         children: [
-          Icon(icon, size: 24),
-          const SizedBox(width: 8),
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-          Text(value),
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF2F4F8),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            padding: const EdgeInsets.all(7),
+            child: Icon(icon, size: 20, color: const Color(0xFF31416A)),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF31416A),
+              fontSize: 14,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w400,
+                color: Color(0xFF31416A),
+                fontSize: 14,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );

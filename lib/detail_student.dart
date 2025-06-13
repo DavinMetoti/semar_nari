@@ -13,7 +13,6 @@ class DetailStudentPage extends StatefulWidget {
   final String class_name;
   final String grade;
 
-
   DetailStudentPage({
     required this.studentId,
     required this.fullname,
@@ -64,7 +63,7 @@ class _DetailStudentPageState extends State<DetailStudentPage> {
       });
 
       final currentBranch = branches.firstWhere(
-            (branch) => branch['name'] == selectedBranchName,
+        (branch) => branch['name'] == selectedBranchName,
         orElse: () => {'id': '', 'name': ''},
       );
       selectedBranchId = currentBranch['id'];
@@ -87,14 +86,12 @@ class _DetailStudentPageState extends State<DetailStudentPage> {
         }).toList();
       });
 
-      // Perbaikan pencarian currentClass
       final currentClass = classes.firstWhere(
-            (classRoom) => classRoom['name'] == selectedClassName,
+        (classRoom) => classRoom['name'] == selectedClassName,
         orElse: () => {'id': '', 'name': ''},
       );
 
       if (currentClass['id'] == '') {
-        // Jika selectedClassName tidak ditemukan dalam daftar, reset ke null
         selectedClassName = null;
         selectedClassId = null;
       } else {
@@ -104,7 +101,6 @@ class _DetailStudentPageState extends State<DetailStudentPage> {
       throw Exception('Failed to load classes');
     }
   }
-
 
   Future<void> _updateUser() async {
     if (selectedBranchId == null || selectedBranchId!.isEmpty || selectedClassId == null || selectedClassId!.isEmpty) {
@@ -119,7 +115,7 @@ class _DetailStudentPageState extends State<DetailStudentPage> {
       'id': widget.studentId,
       'active': isActive ? 1 : 0,
       'branch': selectedBranchId,
-      'class_id': selectedClassId, // Pass the selected class id
+      'class_id': selectedClassId,
     };
 
     final response = await http.post(
@@ -127,8 +123,6 @@ class _DetailStudentPageState extends State<DetailStudentPage> {
       headers: {'Content-Type': 'application/json'},
       body: json.encode(payload),
     );
-
-    print(payload);
 
     if (response.statusCode == 200) {
       final responseData = json.decode(response.body);
@@ -153,34 +147,41 @@ class _DetailStudentPageState extends State<DetailStudentPage> {
 
   @override
   Widget build(BuildContext context) {
+    final Color mainBlue = const Color(0xFF152349);
+    final Color softBlue = const Color(0xFFb6d0f7);
+
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF152349),
+        backgroundColor: mainBlue,
         automaticallyImplyLeading: true,
+        elevation: 0,
         title: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(
               'assets/images/logo.png',
-              height: 30,
-              width: 30,
+              height: 32,
+              width: 32,
             ),
-            const Column(
+            const SizedBox(width: 10),
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+              children: const [
                 Text(
                   'Semar Nari',
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                    fontSize: 17,
+                    fontFamily: 'Montserrat',
+                    letterSpacing: 0.5,
                   ),
                 ),
                 Text(
                   'Sanggar Tari Kota Semarang',
                   style: TextStyle(
                     color: Colors.white70,
-                    fontSize: 10,
+                    fontSize: 11,
+                    fontFamily: 'Montserrat',
                   ),
                 ),
               ],
@@ -201,97 +202,180 @@ class _DetailStudentPageState extends State<DetailStudentPage> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ListView(
-          children: [
-            Card(
-              elevation: 4,
-              margin: EdgeInsets.symmetric(vertical: 8),
-              child: ListTile(
-                leading: Icon(Icons.person, color: Colors.blue),
-                title: Text('Nama: ${widget.fullname}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      body: ListView(
+        padding: const EdgeInsets.all(18.0),
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [softBlue, Colors.white],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-            ),
-            Card(
-              elevation: 4,
-              margin: EdgeInsets.symmetric(vertical: 8),
-              child: ListTile(
-                leading: Icon(Icons.account_circle, color: Colors.blue),
-                title: Text('Username: ${widget.username}', style: TextStyle(fontSize: 14)),
-              ),
-            ),
-            Card(
-              elevation: 4,
-              margin: EdgeInsets.symmetric(vertical: 8),
-              child: ListTile(
-                leading: Icon(Icons.email, color: Colors.blue),
-                title: Text('Email: ${widget.email}', style: TextStyle(fontSize: 14)),
-              ),
-            ),
-            Card(
-              elevation: 4,
-              margin: EdgeInsets.symmetric(vertical: 8),
-              child: ListTile(
-                leading: Icon(
-                  Icons.child_care, // Ikon berbeda untuk TK dan kelas lainnya
-                  color: Colors.blue,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: mainBlue.withOpacity(0.08),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
                 ),
-                title: Text(
-                  widget.grade == '0' ? 'Tingkatan: TK' : 'Tingkatan: Kelas ${widget.grade}', // Jika grade 0 maka TK, selain itu tampilkan kelas sesuai grade
-                  style: TextStyle(fontSize: 14),
-                ),
-              ),
+              ],
             ),
-            Card(
-              elevation: 4,
-              margin: EdgeInsets.symmetric(vertical: 8),
-              child: ListTile(
-                leading: Icon(Icons.school, color: Colors.blue),
-                title: Text('Kelas: ', style: TextStyle(fontSize: 14)),
-                trailing: DropdownButton<String>(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+            margin: const EdgeInsets.only(bottom: 22),
+            child: Row(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [mainBlue, softBlue],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(10),
+                  child: const Icon(Icons.person, color: Colors.white, size: 38),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.fullname,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF152349),
+                          fontFamily: 'Montserrat',
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.phone, color: mainBlue, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            widget.phone,
+                            style: TextStyle(
+                              color: mainBlue,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          widget.active == '1' ? 'Aktif' : 'Tidak Aktif',
+                          style: TextStyle(
+                            color: widget.active == '1' ? mainBlue : Colors.red,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _ModernInfoTile(
+            icon: Icons.account_circle,
+            label: 'Username',
+            value: widget.username,
+          ),
+          _ModernInfoTile(
+            icon: Icons.email,
+            label: 'Email',
+            value: widget.email,
+          ),
+          _ModernInfoTile(
+            icon: Icons.child_care,
+            label: 'Tingkatan',
+            value: widget.grade == '0' ? 'TK' : 'Kelas ${widget.grade}',
+          ),
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: mainBlue.withOpacity(0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ListTile(
+              leading: Icon(Icons.school, color: mainBlue),
+              title: const Text('Kelas', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              trailing: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
                   value: selectedClassName,
-                  hint: Text('Pilih Kelas'),
+                  hint: const Text('Pilih Kelas'),
                   onChanged: (String? newValue) {
                     setState(() {
                       selectedClassName = newValue;
                       selectedClassId = classes.firstWhere(
-                            (classRoom) => classRoom['name'] == newValue,
+                        (classRoom) => classRoom['name'] == newValue,
                         orElse: () => {'id': '', 'name': ''},
                       )['id'];
                     });
                   },
                   items: [
                     if (selectedClassName == null)
-                      DropdownMenuItem<String>(
+                      const DropdownMenuItem<String>(
                         value: null,
                         child: Text('Pilih Kelas', style: TextStyle(fontSize: 14)),
                       ),
                     ...classes.map<DropdownMenuItem<String>>((classRoom) {
                       return DropdownMenuItem<String>(
                         value: classRoom['name'],
-                        child: Text(classRoom['name'], style: TextStyle(fontSize: 14)),
+                        child: Text(classRoom['name'], style: const TextStyle(fontSize: 14)),
                       );
                     }).toList(),
                   ],
                 ),
               ),
             ),
-            Card(
-              elevation: 4,
-              margin: EdgeInsets.symmetric(vertical: 8),
-              child: ListTile(
-                leading: Icon(Icons.room, color: Colors.blue),
-                title: Text('Sanggar: ', style: TextStyle(fontSize: 14)),
-                trailing: DropdownButton<String>(
-                  value: selectedBranchName ?? '', // Provide fallback empty string
-                  hint: Text('Pilih Sanggar'),
+          ),
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: mainBlue.withOpacity(0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ListTile(
+              leading: Icon(Icons.room, color: mainBlue),
+              title: const Text('Sanggar', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              trailing: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: selectedBranchName,
+                  hint: const Text('Pilih Sanggar'),
                   onChanged: (String? newValue) {
                     setState(() {
                       selectedBranchName = newValue;
-                      // Update selectedBranchId when branch name changes
                       selectedBranchId = branches.firstWhere(
-                            (branch) => branch['name'] == newValue,
+                        (branch) => branch['name'] == newValue,
                         orElse: () => {'id': '', 'name': ''},
                       )['id'];
                     });
@@ -299,57 +383,108 @@ class _DetailStudentPageState extends State<DetailStudentPage> {
                   items: branches.map<DropdownMenuItem<String>>((branch) {
                     return DropdownMenuItem<String>(
                       value: branch['name'],
-                      child: Text(branch['name'], style: TextStyle(fontSize: 14)),
+                      child: Text(branch['name'], style: const TextStyle(fontSize: 14)),
                     );
                   }).toList(),
                 ),
               ),
             ),
-            Card(
-              elevation: 4,
-              margin: EdgeInsets.symmetric(vertical: 8),
-              child: ListTile(
-                leading: Icon(Icons.phone, color: Colors.blue),
-                title: Text('Nomor Telepon: ${widget.phone}', style: TextStyle(fontSize: 14)),
+          ),
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: mainBlue.withOpacity(0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ListTile(
+              leading: Icon(
+                isActive ? Icons.check_circle : Icons.cancel,
+                color: isActive ? mainBlue : Colors.red,
+              ),
+              title: const Text('Status', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              trailing: Switch(
+                value: isActive,
+                activeColor: mainBlue,
+                onChanged: (bool value) {
+                  setState(() {
+                    isActive = value;
+                  });
+                },
               ),
             ),
-            Card(
-              elevation: 4,
-              margin: EdgeInsets.symmetric(vertical: 8),
-              child: ListTile(
-                leading: Icon(
-                  isActive ? Icons.check_circle : Icons.cancel,
-                  color: isActive ? Colors.green : Colors.red,
-                ),
-                title: Text('Status: ', style: TextStyle(fontSize: 14)),
-                trailing: Switch(
-                  value: isActive,
-                  onChanged: (bool value) {
-                    setState(() {
-                      isActive = value;
-                    });
-                  },
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _updateUser,
+              icon: const Icon(Icons.save, color: Colors.white),
+              label: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 6.0),
+                child: Text(
+                  'Update',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ),
-            ),
-            SizedBox(height: 20),
-            Center(
-              child: SizedBox(
-                width: double.infinity, // Membuat tombol memenuhi lebar layar
-                child: ElevatedButton(
-                  onPressed: _updateUser,
-                  child: Text(
-                    'Update',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF152349),
-                    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                  ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: mainBlue,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                elevation: 2,
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModernInfoTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _ModernInfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color mainBlue = const Color(0xFF152349);
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: mainBlue.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: mainBlue),
+        title: Text(
+          label,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          value,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
         ),
       ),
     );
